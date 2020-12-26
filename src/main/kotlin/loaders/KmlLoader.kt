@@ -131,6 +131,7 @@ class KmlLoader : GpsLoader {
         </SchemaData></ExtendedData>
          */
 
+        val xPathCompiled = xPath.compile(nameExpression)
         return (0 until placemarkNodes.length).map { i ->
 //        val segs = (0 until 10).map { i ->
             val placemarkNode = placemarkNodes.item(i)
@@ -139,8 +140,7 @@ class KmlLoader : GpsLoader {
 //            println(nodeList.length)
 //            nodeList.item(0).attributes
 
-            val nodeList =
-                xPath.compile(nameExpression).evaluate(placemarkNode, XPathConstants.NODESET) as NodeList
+            val nodeList = xPathCompiled.evaluate(placemarkNode, XPathConstants.NODESET) as NodeList
             val attributes = (0 until nodeList.length).mapNotNull { nodeIndex ->
                 val item = nodeList.item(nodeIndex)
                 item.attributes.getNamedItem("name").textContent to item.textContent

@@ -67,20 +67,21 @@ class GpxLoader : GpsLoader {
             val lat = point.attributes.getNamedItem("lat").nodeValue.toDouble()
             val lng = point.attributes.getNamedItem("lon").nodeValue.toDouble()
             var ele: Double? = null
-            var timestamp: Calendar? = null
+//             var timestamp: Calendar? = null
             for (k in 0 until point.childNodes.length) {
                 val node = point.childNodes.item(k)
                 if (node.nodeName == "ele") {
                     ele = node.textContent.toDouble()
+                    break
                 }
-                if (false && node.nodeName == "time") {
-                    timestamp = parseTime(node.textContent)
-                }
+//                if (false && node.nodeName == "time") {
+//                    timestamp = parseTime(node.textContent)
+//                }
             }
             val location = Location(lat, lng, ele)
-            if (timestamp != null) {
-                // location.timestamp = timestamp
-            }
+//            if (timestamp != null) {
+//                // location.timestamp = timestamp
+//            }
             segment.locations.add(location)
         }
 

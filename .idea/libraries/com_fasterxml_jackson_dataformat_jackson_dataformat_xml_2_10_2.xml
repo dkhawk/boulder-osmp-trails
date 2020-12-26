@@ -13,6 +13,8 @@
       <root url="jar://$MAVEN_REPOSITORY$/com/fasterxml/woodstox/woodstox-core/6.0.3/woodstox-core-6.0.3.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.ideaLibSources/jackson-dataformat-xml-2.10.2-sources.jar!/" />
+    </SOURCES>
   </library>
 </component>
