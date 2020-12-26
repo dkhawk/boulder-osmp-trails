@@ -52,8 +52,6 @@ class Segment {
 
     lateinit var bounds: LatLngBounds
 
-    var locationStats: ArrayList<LocationStats> = ArrayList()
-
     var initialized = false
 
     var orderNumber: Int? = 0

@@ -15,6 +15,10 @@ class UnitsUtility {
             return feet * 0.3048
         }
 
+        fun feetToMeters(feet: Double): Double {
+            return feet * 0.3048
+        }
+
         fun metersToMiles(meters: Int): Double {
             return metersToMiles(meters.toDouble())
         }

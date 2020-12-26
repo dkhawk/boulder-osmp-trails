@@ -2,7 +2,6 @@ package com.sphericalchickens.osmptrailchallenge.loaders
 
 import com.sphericalchickens.osmptrailchallenge.model.Location
 import com.sphericalchickens.osmptrailchallenge.model.Segment
-import com.sphericalchickens.osmptrailchallenge.model.Waypoint
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import org.w3c.dom.Node
@@ -43,7 +42,6 @@ class GpxLoader : GpsLoader {
         doc.documentElement.normalize()
 
         val segments = ArrayList<Segment>()
-        val waypoints = ArrayList<Waypoint>()
 
         val tracksAndRoutesList = xPath.compile("//gpx/trk | //gpx/rte | //gpx/wpt").evaluate(doc, NODESET) as NodeList
 
@@ -54,40 +52,14 @@ class GpxLoader : GpsLoader {
             when (node.nodeName) {
                 "trk" -> segments.add(readTrack(node))
                 "rte" -> segments.add(readRoute(node))
-                "wpt" -> waypoints.add(readWaypoint(node))
             }
         }
 
-        return LoaderResult(segments, waypoints)
-    }
-
-    private fun readWaypoint(waypointNode: Node): Waypoint {
-        val waypoint = Waypoint()
-
-        val lat = waypointNode.attributes.getNamedItem("lat").nodeValue.toDouble()
-        val lng = waypointNode.attributes.getNamedItem("lon").nodeValue.toDouble()
-        var elevation: Double? = null
-
-        for (i in 0 until waypointNode.childNodes.length) {
-            val item = waypointNode.childNodes.item(i)
-            val name = item.nodeName
-            val value = item.textContent.trim { it <= ' ' }
-            when (name.toLowerCase(Locale.US)) {
-                "ele" -> elevation = value.toDoubleOrNull()
-                "name" -> waypoint.name = value
-                "desc" -> waypoint.description = value
-            }
-        }
-
-        val location = Location(lat, lng, elevation)
-
-        waypoint.location = location
-        return waypoint
+        return LoaderResult(segments)
     }
 
     private fun readTrack(trackNode: Node): Segment {
         val segment = Segment()
-
 
         val trackPoints = xPath.compile("trkseg/trkpt").evaluate(trackNode, NODESET) as NodeList
         for (j in 0 until trackPoints.length) {
@@ -107,7 +79,7 @@ class GpxLoader : GpsLoader {
             }
             val location = Location(lat, lng, ele)
             if (timestamp != null) {
-                location.timestamp = timestamp
+                // location.timestamp = timestamp
             }
             segment.locations.add(location)
         }
@@ -122,7 +94,7 @@ class GpxLoader : GpsLoader {
             }
         }
 
-        segment.calculateStats()
+        // segment.calculateStats()
         return segment
     }
 
@@ -162,7 +134,7 @@ class GpxLoader : GpsLoader {
             }
         }
 
-        segment.calculateStats()
+        // segment.calculateStats()
         return segment
     }
 
