@@ -1,6 +1,5 @@
 package com.sphericalchickens.osmptrailchallenge.model
 
 data class Location(
-  var lat: Double? = null,
-  var lng: Double? = null,
-  var elevation: Double? = null)
+  var lat: Double = 0.0,
+  var lng: Double = 0.0)

@@ -78,7 +78,7 @@ class GpxLoader : GpsLoader {
 //                    timestamp = parseTime(node.textContent)
 //                }
             }
-            val location = Location(lat, lng, ele)
+            val location = Location(lat, lng)
 //            if (timestamp != null) {
 //                // location.timestamp = timestamp
 //            }
@@ -125,7 +125,7 @@ class GpxLoader : GpsLoader {
                     ele = node.textContent.toDouble()
                 }
             }
-            segment.locations.add(Location(lat, lng, ele))
+            segment.locations.add(Location(lat, lng))
         }
 
         if (routeNode is Element) {

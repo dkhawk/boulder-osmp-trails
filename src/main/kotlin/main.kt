@@ -7,13 +7,16 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
+import com.sphericalchickens.osmptrailchallenge.model.Grid
 import com.sphericalchickens.osmptrailchallenge.model.LatLngBounds
 import com.sphericalchickens.osmptrailchallenge.model.Location
 import com.sphericalchickens.osmptrailchallenge.model.Trail
+import com.sphericalchickens.osmptrailchallenge.model.UnitsUtility
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.ceil
 import org.gavaghan.geodesy.Ellipsoid
 import org.gavaghan.geodesy.GeodeticCalculator
 import org.gavaghan.geodesy.GlobalCoordinates
@@ -29,19 +32,23 @@ import org.gavaghan.geodesy.GlobalCoordinates
 fun main(args: Array<String>) {
   println("Hello World!")
 
-  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails.kml"
+//  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails.kml"
 //  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails_truncated.kml"
 //  val trailDataFileName = "/Users/dkhawk/Downloads/gregory.kml"
+
+//  val trailTextFilename = "/Users/dkhawk/Downloads/gregory.txt"
+  val trailTextFilename = "/Users/dkhawk/Downloads/OSMP-trails.txt"
+
   val runFileName = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
 
   val loader = GpsLoaderFactory()
   val gpxLoader = loader.getLoaderByExtention("gpx")
 
 //  val database = getDatabaseConnection()
-//  val trails = readTrailsFromFile("/Users/dkhawk/Downloads/OSMP-trails.txt")
+  val trails = readTrailsFromFile(trailTextFilename)
 
 //  val trails = readFromKml(loader, trailDataFileName)
-//  writeTrailsToFile("/Users/dkhawk/Downloads/OSMP-trails.txt", trails)
+//  writeTrailsToFile("/Users/dkhawk/Downloads/gregory.txt", trails)
 //  readFromDatabase(database)
 //  writeToDatabase(database, trails)
   // TODO: not happy about this sleep for reading from the database.
@@ -60,27 +67,70 @@ fun main(args: Array<String>) {
   )
   println(bounds)
 
-  // instantiate the calculator
-  // instantiate the calculator
-  val geoCalc = GeodeticCalculator()
+//  val ellipseMiles = ellipseKilometers * 0.621371192
+//  println(ellipseKilometers)
+//  println(ellipseMiles)
 
-  // select a reference elllipsoid
-  val reference = Ellipsoid.WGS84
+  val (northSouthMeters, eastWestMeters) = bounds.getDimensionsMeters()
+  println("$northSouthMeters, $eastWestMeters")
+  println("${UnitsUtility.metersToMiles(northSouthMeters)}," +
+            " ${UnitsUtility.metersToMiles(eastWestMeters)}")
 
-  // set Lincoln Memorial coordinates
-  val lincolnMemorial = GlobalCoordinates(38.88922, -77.04978)
+  val gridSizeMeters = 200.0
+  val nsGridWidth = ceil(northSouthMeters / gridSizeMeters).toInt()
+  val ewGridWidth = ceil(eastWestMeters / gridSizeMeters).toInt()
+  println("$ewGridWidth x $nsGridWidth")
 
-  // set Eiffel Tower coordinates
-  val eiffelTower = GlobalCoordinates(48.85889, 2.29583)
+  val latSize = bounds.maxLatitude - bounds.minLatitude
+  val lngSize = bounds.maxLongitude - bounds.minLongitude
 
-//  GlobalCoordinates(bounds.minLatitude, bounds.minLongitude)
+  println("Lat: $latSize, Lng: $lngSize")
+  val latGridSizeDegrees = latSize / nsGridWidth
+  val lngGridSizeDegrees = lngSize / ewGridWidth
 
-  // calculate the geodetic curve
-  val geoCurve = geoCalc.calculateGeodeticCurve(reference, lincolnMemorial, eiffelTower)
-  val ellipseKilometers = geoCurve.ellipsoidalDistance / 1000.0
-  val ellipseMiles = ellipseKilometers * 0.621371192
-  println(ellipseKilometers)
-  println(ellipseMiles)
+  println("lat: $latGridSizeDegrees, lng: $lngGridSizeDegrees")
+  // plus 2 to add a border around the entire grid
+  val grid = Grid(width = ewGridWidth + 2, height = nsGridWidth + 2)
+
+  val minLat = bounds.minLatitude - (latGridSizeDegrees / nsGridWidth)
+  val maxLat = bounds.maxLatitude + (latGridSizeDegrees / nsGridWidth)
+  val minLng = bounds.minLongitude - (lngGridSizeDegrees / ewGridWidth)
+  val maxLng = bounds.maxLongitude + (lngGridSizeDegrees / ewGridWidth)
+  val newLatSize = maxLat - minLat
+  val newLngSize = maxLng - minLng
+
+  // Gregory
+//  val segmentId = "266-152-363"
+  //  val segmentId = "266-143-151"
+
+  // Buckingham Park
+//  val segmentId = "417-665-663"
+  // East Boulder
+  val segments = listOf("502-539-555", "502-555-554", "501-537-555", "515-534-535", "503-534-536",
+                        "503-530-534", "516-531-532", "516-531-533", "503-529-530", "516-529-531",
+                        "503-528-529", "503-530-528", "503-527-528")
+
+//  segments.forEach { segmentId ->
+//    trails[segmentId]?.locations?.forEach { location ->
+//      // Map to the tile
+//      val row = (((location.lat - minLat) / newLatSize) * nsGridWidth).toInt()
+//      val col = (((location.lng - minLng) / newLngSize) * ewGridWidth).toInt()
+//      grid.increment(col, row)
+//    }
+//  }
+
+  trails.entries.forEach { (_, trail) ->
+    trail.locations.forEach { location ->
+      // Map to the tile
+      val row = (((location.lat - minLat) / newLatSize) * nsGridWidth).toInt()
+      val col = (((location.lng - minLng) / newLngSize) * ewGridWidth).toInt()
+      grid.increment(col, row)
+    }
+  }
+
+  println(grid)
+
+
 }
 
 private fun getDatabaseConnection(): FirebaseDatabase {

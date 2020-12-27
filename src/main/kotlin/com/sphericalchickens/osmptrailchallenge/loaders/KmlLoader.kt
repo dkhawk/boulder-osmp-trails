@@ -196,7 +196,7 @@ class KmlLoader : GpsLoader {
                     it.toDoubleOrNull()
                 }
                 if (lng != null && lat != null) {
-                    locations.add(Location(lat, lng, el))
+                    locations.add(Location(lat, lng))
                 }
             }
         }

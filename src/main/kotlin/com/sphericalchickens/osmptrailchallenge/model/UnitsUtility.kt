@@ -34,5 +34,9 @@ class UnitsUtility {
         fun metersToFeet(meters: Double): Double {
             return meters * 3.28084
         }
+
+        fun kilometerToMiles(kilometers: Double): Double {
+            return kilometers * 0.621371
+        }
     }
 }

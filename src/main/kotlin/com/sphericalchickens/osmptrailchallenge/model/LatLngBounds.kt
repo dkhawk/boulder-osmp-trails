@@ -1,11 +1,37 @@
 package com.sphericalchickens.osmptrailchallenge.model
 
+import org.gavaghan.geodesy.Ellipsoid
+import org.gavaghan.geodesy.GeodeticCalculator
+import org.gavaghan.geodesy.GlobalCoordinates
+
 data class LatLngBounds(
-  var minLatitude: Double? = null,
-  var minLongitude: Double? = null,
-  var maxLatitude: Double? = null,
-  var maxLongitude: Double? = null,
+  var minLatitude: Double = 0.0,
+  var minLongitude: Double = 0.0,
+  var maxLatitude: Double = 0.0,
+  var maxLongitude: Double = 0.0,
 ) {
+
+  fun getDimensionsMeters(): Pair<Double, Double> {
+    // instantiate the calculator
+    val geoCalc = GeodeticCalculator()
+
+    // select a reference elllipsoid
+    val reference = Ellipsoid.WGS84
+
+    val southWest = GlobalCoordinates(minLatitude, minLongitude)
+    val northWest = GlobalCoordinates(maxLatitude, minLongitude)
+    val southEast = GlobalCoordinates(minLatitude, maxLongitude)
+    val northEast = GlobalCoordinates(maxLatitude, maxLongitude)
+
+    // calculate the geodetic curve
+    val northSouthCurve = geoCalc.calculateGeodeticCurve(reference, southWest, northWest)
+    val northSouthDistance = northSouthCurve.ellipsoidalDistance
+
+    val eastWestCurve = geoCalc.calculateGeodeticCurve(reference, southWest, southEast)
+    val eastWestDistance = eastWestCurve.ellipsoidalDistance
+
+    return Pair(northSouthDistance, eastWestDistance)
+  }
 
   companion object {
     fun createFromLocations(locations: List<Location>): LatLngBounds {
@@ -17,10 +43,10 @@ data class LatLngBounds(
       var maxLatitude = first.lat
 
       locations.forEach { location ->
-        minLongitude = minLongitude!!.coerceAtMost(location.lng!!)
-        maxLongitude = maxLongitude!!.coerceAtLeast(location.lng!!)
-        minLatitude = minLatitude!!.coerceAtMost(location.lat!!)
-        maxLatitude = maxLatitude!!.coerceAtLeast(location.lat!!)
+        minLongitude = minLongitude.coerceAtMost(location.lng)
+        maxLongitude = maxLongitude.coerceAtLeast(location.lng)
+        minLatitude = minLatitude.coerceAtMost(location.lat)
+        maxLatitude = maxLatitude.coerceAtLeast(location.lat)
       }
       return LatLngBounds(minLatitude, minLongitude, maxLatitude, maxLongitude)
     }
@@ -34,10 +60,10 @@ data class LatLngBounds(
       var maxLatitude = first.maxLatitude
 
       bounds.forEach { bound ->
-        minLongitude = minLongitude!!.coerceAtMost(bound.minLongitude!!)
-        maxLongitude = maxLongitude!!.coerceAtLeast(bound.maxLongitude!!)
-        minLatitude = minLatitude!!.coerceAtMost(bound.minLatitude!!)
-        maxLatitude = maxLatitude!!.coerceAtLeast(bound.maxLatitude!!)
+        minLongitude = minLongitude.coerceAtMost(bound.minLongitude)
+        maxLongitude = maxLongitude.coerceAtLeast(bound.maxLongitude)
+        minLatitude = minLatitude.coerceAtMost(bound.minLatitude)
+        maxLatitude = maxLatitude.coerceAtLeast(bound.maxLatitude)
       }
 
       return LatLngBounds(minLatitude, minLongitude, maxLatitude, maxLongitude)
