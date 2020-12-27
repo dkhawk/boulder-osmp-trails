@@ -34,7 +34,8 @@ fun main(args: Array<String>) {
 //  val trailTextFilename = "/Users/dkhawk/Downloads/gregory.txt"
   val trailTextFilename = "/Users/dkhawk/Downloads/OSMP-trails.txt"
 
-  val runFileName = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
+//  val runFileName = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
+  val runFileName = "/Users/dkhawk/Downloads/Collecting_data.gpx"
 
   val loader = GpsLoaderFactory()
   val gpxLoader = loader.getLoaderByExtention("gpx")
@@ -45,12 +46,12 @@ fun main(args: Array<String>) {
 //  val trails = readFromKml(loader, trailDataFileName)
 //  writeTrailsToFile("/Users/dkhawk/Downloads/gregory.txt", trails)
 //  readFromDatabase(database)
+
+  // TODO: before writing to the database, be sure to convert to
 //  writeToDatabase(database, trails)
+
   // TODO: not happy about this sleep for reading from the database.
 //  Thread.sleep(5000)
-
-//  val activity = gpxLoader.load(File(runFileName).inputStream())
-//  println(activity.segments.first().locations.size)
 
   // Now calculate the bounds of all the trails
     val bounds = LatLngBounds.createFromBounds(trails.map { (_, value) -> value.bounds })
@@ -68,12 +69,41 @@ fun main(args: Array<String>) {
       // Map to the tile
       grid.incrementLatLng(location)
       // TODO: make a "lineTo" function!
-//      grid.increment(col, row)
       grid.addSegmentToCell(location, trail.segmentId)
     }
   }
-  println(grid)
-  println(grid.gridOfSegments.count { it.isNotEmpty() })
+  //  println(grid)
+  //  println(grid.gridOfSegments.count { it.isNotEmpty() })
+
+  val activity = gpxLoader.load(File(runFileName).inputStream())
+  //  println(activity.segments.first().locations.size)
+  val activityTiles = activity.segments.first().locations.map { location ->
+    grid.locationToTileCoords(location)
+  }.toSet()
+//  println(activityTiles.sortedWith( compareBy({ it.y }, { it.x })).joinToString("\n"))
+
+  val segsId = activityTiles.mapNotNull { coordinates ->
+    grid.getSegmentsAt(coordinates)?.toList()
+  }.flatten().toSet()
+
+  println(segsId)
+  val segs = segsId.mapNotNull { trails[it] }
+  println(segsId.map { trails[it]?.name }.joinToString("\n"))
+
+  val bounds2 = LatLngBounds.createFromBounds(segs.map { value -> value.bounds })
+
+  val newGrid = Grid(bounds2)
+  segs.forEach { trail ->
+    trail.locations.forEach { location ->
+      // Map to the tile
+      newGrid.incrementLatLng(location)
+      // TODO: make a "lineTo" function!
+      newGrid.addSegmentToCell(location, trail.segmentId)
+    }
+  }
+
+  println(newGrid)
+
 }
 
 private fun getDatabaseConnection(): FirebaseDatabase {
