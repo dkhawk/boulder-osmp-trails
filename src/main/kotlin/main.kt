@@ -11,12 +11,10 @@ import com.sphericalchickens.osmptrailchallenge.model.Grid
 import com.sphericalchickens.osmptrailchallenge.model.LatLngBounds
 import com.sphericalchickens.osmptrailchallenge.model.Location
 import com.sphericalchickens.osmptrailchallenge.model.Trail
-import com.sphericalchickens.osmptrailchallenge.model.UnitsUtility
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.ceil
 
 
 //////////////////// Note //////////////////////////////
@@ -55,7 +53,7 @@ fun main(args: Array<String>) {
 //  println(activity.segments.first().locations.size)
 
   // Now calculate the bounds of all the trails
-    val bounds = LatLngBounds.createFromBounds(trails.map { (key, value) -> value.bounds!! })
+    val bounds = LatLngBounds.createFromBounds(trails.map { (_, value) -> value.bounds })
 //  val bounds = LatLngBounds(
 //    minLatitude = 39.9139860039965,
 //    minLongitude = -105.406643752203,
