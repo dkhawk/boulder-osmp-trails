@@ -17,9 +17,6 @@ import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.ceil
-import org.gavaghan.geodesy.Ellipsoid
-import org.gavaghan.geodesy.GeodeticCalculator
-import org.gavaghan.geodesy.GlobalCoordinates
 
 
 //////////////////// Note //////////////////////////////
@@ -58,79 +55,27 @@ fun main(args: Array<String>) {
 //  println(activity.segments.first().locations.size)
 
   // Now calculate the bounds of all the trails
-  //  val bounds = LatLngBounds.createFromBounds(trails.map { (key, value) -> value.bounds!! })
-  val bounds = LatLngBounds(
-    minLatitude = 39.9139860039965,
-    minLongitude = -105.406643752203,
-    maxLatitude = 40.1164546952824,
-    maxLongitude = -105.131874521385
-  )
-  println(bounds)
+    val bounds = LatLngBounds.createFromBounds(trails.map { (key, value) -> value.bounds!! })
+//  val bounds = LatLngBounds(
+//    minLatitude = 39.9139860039965,
+//    minLongitude = -105.406643752203,
+//    maxLatitude = 40.1164546952824,
+//    maxLongitude = -105.131874521385
+//  )
 
-//  val ellipseMiles = ellipseKilometers * 0.621371192
-//  println(ellipseKilometers)
-//  println(ellipseMiles)
-
-  val (northSouthMeters, eastWestMeters) = bounds.getDimensionsMeters()
-  println("$northSouthMeters, $eastWestMeters")
-  println("${UnitsUtility.metersToMiles(northSouthMeters)}," +
-            " ${UnitsUtility.metersToMiles(eastWestMeters)}")
-
-  val gridSizeMeters = 200.0
-  val nsGridWidth = ceil(northSouthMeters / gridSizeMeters).toInt()
-  val ewGridWidth = ceil(eastWestMeters / gridSizeMeters).toInt()
-  println("$ewGridWidth x $nsGridWidth")
-
-  val latSize = bounds.maxLatitude - bounds.minLatitude
-  val lngSize = bounds.maxLongitude - bounds.minLongitude
-
-  println("Lat: $latSize, Lng: $lngSize")
-  val latGridSizeDegrees = latSize / nsGridWidth
-  val lngGridSizeDegrees = lngSize / ewGridWidth
-
-  println("lat: $latGridSizeDegrees, lng: $lngGridSizeDegrees")
-  // plus 2 to add a border around the entire grid
-  val grid = Grid(width = ewGridWidth + 2, height = nsGridWidth + 2)
-
-  val minLat = bounds.minLatitude - (latGridSizeDegrees / nsGridWidth)
-  val maxLat = bounds.maxLatitude + (latGridSizeDegrees / nsGridWidth)
-  val minLng = bounds.minLongitude - (lngGridSizeDegrees / ewGridWidth)
-  val maxLng = bounds.maxLongitude + (lngGridSizeDegrees / ewGridWidth)
-  val newLatSize = maxLat - minLat
-  val newLngSize = maxLng - minLng
-
-  // Gregory
-//  val segmentId = "266-152-363"
-  //  val segmentId = "266-143-151"
-
-  // Buckingham Park
-//  val segmentId = "417-665-663"
-  // East Boulder
-  val segments = listOf("502-539-555", "502-555-554", "501-537-555", "515-534-535", "503-534-536",
-                        "503-530-534", "516-531-532", "516-531-533", "503-529-530", "516-529-531",
-                        "503-528-529", "503-530-528", "503-527-528")
-
-//  segments.forEach { segmentId ->
-//    trails[segmentId]?.locations?.forEach { location ->
-//      // Map to the tile
-//      val row = (((location.lat - minLat) / newLatSize) * nsGridWidth).toInt()
-//      val col = (((location.lng - minLng) / newLngSize) * ewGridWidth).toInt()
-//      grid.increment(col, row)
-//    }
-//  }
+  val grid = Grid(bounds, borderWidth = 1, cellSizeMeters = 100)
 
   trails.entries.forEach { (_, trail) ->
     trail.locations.forEach { location ->
       // Map to the tile
-      val row = (((location.lat - minLat) / newLatSize) * nsGridWidth).toInt()
-      val col = (((location.lng - minLng) / newLngSize) * ewGridWidth).toInt()
-      grid.increment(col, row)
+      grid.incrementLatLng(location)
+      // TODO: make a "lineTo" function!
+//      grid.increment(col, row)
+      grid.addSegmentToCell(location, trail.segmentId)
     }
   }
-
   println(grid)
-
-
+  println(grid.gridOfSegments.count { it.isNotEmpty() })
 }
 
 private fun getDatabaseConnection(): FirebaseDatabase {
