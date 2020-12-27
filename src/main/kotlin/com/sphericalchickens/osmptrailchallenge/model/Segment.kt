@@ -1,7 +1,6 @@
 package com.sphericalchickens.osmptrailchallenge.model
 
 import java.util.*
-import kotlin.collections.ArrayList
 import kotlin.math.*
 
 class Segment {
@@ -18,25 +17,14 @@ class Segment {
         return summaryString!!
     }
 
-    fun getName(): String {
-        return name
-    }
+    var trailId: String = ""
 
-    fun getId(): Long {
-        return segmentId
-    }
+    var segmentId: String = ""
 
-    fun getOrder(): Int? {
-        return orderNumber
-    }
-
-    var segmentId: Long = 0
-
-    @JvmField
     var name: String = ""
     var description: String = ""
 
-    var locations: ArrayList<Location> = ArrayList()
+    var locations = mutableListOf<Location>()
 
     // Length in meters
     var length: Int = 0
@@ -50,7 +38,9 @@ class Segment {
     var minElevation: Int = Int.MAX_VALUE
     var maxElevation: Int = Int.MIN_VALUE
 
-    lateinit var bounds: LatLngBounds
+    val bounds: LatLngBounds by lazy {
+        LatLngBounds.createFromLocations(locations)
+    }
 
     var initialized = false
 

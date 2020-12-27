@@ -107,7 +107,8 @@ class KmlLoader : GpsLoader {
         val expression = "ExtendedData/SchemaData/SimpleData"
         val nameExpression = "ExtendedData/SchemaData/SimpleData[@name=\"GISPROD3OSMPTrailsOSMPTRAILNAME\"] " +
           "| ExtendedData/SchemaData/SimpleData[@name=\"SHAPESTLength\"]" +
-          "| ExtendedData/SchemaData/SimpleData[@name=\"GISPROD3OSMPTrailsOSMPTRLID\"]"
+          "| ExtendedData/SchemaData/SimpleData[@name=\"GISPROD3OSMPTrailsOSMPTRLID\"]" +
+          "| ExtendedData/SchemaData/SimpleData[@name=\"GISPROD3OSMPTrailsOSMPSEGMENTID\"]"
         val coordinatesExpression = "LineString/coordinates"
 
         /*
@@ -162,6 +163,9 @@ class KmlLoader : GpsLoader {
             segment.name = attributes["GISPROD3OSMPTrailsOSMPTRAILNAME"] ?: "unknown"
             segment.locations.addAll(locations!!)
             segment.length = UnitsUtility.feetToMeters(attributes["SHAPESTLength"]?.toDouble() ?: 0.0).roundToInt()
+            segment.trailId = attributes["GISPROD3OSMPTrailsOSMPTRLID"] ?: ""
+            segment.segmentId = attributes["GISPROD3OSMPTrailsOSMPSEGMENTID"] ?: ""
+
             segment
         }
 
