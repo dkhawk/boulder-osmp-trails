@@ -7,6 +7,7 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
+import com.sphericalchickens.osmptrailchallenge.loaders.LoaderResult
 import com.sphericalchickens.osmptrailchallenge.model.Grid
 import com.sphericalchickens.osmptrailchallenge.model.LatLngBounds
 import com.sphericalchickens.osmptrailchallenge.model.Location
@@ -15,6 +16,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
+import org.gavaghan.geodesy.Ellipsoid
+import org.gavaghan.geodesy.GeodeticCalculator
+import org.gavaghan.geodesy.GlobalCoordinates
 
 
 //////////////////// Note //////////////////////////////
@@ -23,6 +27,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 // -Dorg.slf4j.simpleLogger.defaultLogLevel=trace
 //
 //////////////////// Note //////////////////////////////
+
+val geoCalc = GeodeticCalculator()
+
+// select a reference elllipsoid
+val reference = Ellipsoid.WGS84
 
 fun main(args: Array<String>) {
   println("Hello World!")
@@ -34,8 +43,8 @@ fun main(args: Array<String>) {
 //  val trailTextFilename = "/Users/dkhawk/Downloads/gregory.txt"
   val trailTextFilename = "/Users/dkhawk/Downloads/OSMP-trails.txt"
 
-//  val runFileName = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
-  val runFileName = "/Users/dkhawk/Downloads/Collecting_data.gpx"
+  val greenRun = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
+  val tellerRun = "/Users/dkhawk/Downloads/Collecting_data.gpx"
 
   val loader = GpsLoaderFactory()
   val gpxLoader = loader.getLoaderByExtention("gpx")
@@ -75,7 +84,17 @@ fun main(args: Array<String>) {
   //  println(grid)
   //  println(grid.gridOfSegments.count { it.isNotEmpty() })
 
-  val activity = gpxLoader.load(File(runFileName).inputStream())
+
+  val activity = gpxLoader.load(File(tellerRun).inputStream())
+//  val activity = gpxLoader.load(File(greenRun).inputStream())
+  completedSegments(activity, grid, trails)
+}
+
+private fun completedSegments(
+  activity: LoaderResult,
+  grid: Grid,
+  trails: Map<String, Trail>
+) {
   //  println(activity.segments.first().locations.size)
   val activityTiles = activity.segments.first().locations.map { location ->
     grid.locationToTileCoords(location)
@@ -104,6 +123,37 @@ fun main(args: Array<String>) {
 
   println(newGrid)
 
+  println()
+
+  val segmentsWithError = segs.map { segment ->
+    // This seems subject to noise?
+    val maxError = getSegmentDistances(segment, activity.segments.first().locations)
+    maxError to segment
+  }
+
+  val (hits, misses) = segmentsWithError.partition { errorMeasure ->
+    errorMeasure.first!!.first < 200
+  }
+
+  println("Completed: ${hits.joinToString { it.second.name }}")
+  println("Not completed: ${misses.joinToString { it.second.name }}")
+}
+
+fun getSegmentDistances(trail: Trail, locations: MutableList<Location>): Pair<Double, Location>? {
+//  println(trail.locations)
+
+  return trail.locations.mapNotNull { segmentLocation ->
+    // Ugh.  Not very efficient...  This is n^2.  Should probably segment the activity?
+    // How far to the nearest tracked location?
+    val segmentCoordinates = GlobalCoordinates(segmentLocation.lat, segmentLocation.lng)
+    locations.map { activityLocation ->
+      val activityCoordinates = GlobalCoordinates(activityLocation.lat, activityLocation.lng)
+      val curve = geoCalc.calculateGeodeticCurve(reference, segmentCoordinates, activityCoordinates)
+      val distance = curve.ellipsoidalDistance
+      distance to activityLocation
+    }.minByOrNull { it.first }
+//    println(minDistance)
+  }.maxByOrNull { it.first }
 }
 
 private fun getDatabaseConnection(): FirebaseDatabase {
