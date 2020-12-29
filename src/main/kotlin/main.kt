@@ -16,12 +16,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.system.measureNanoTime
 import kotlin.system.measureTimeMillis
-import org.gavaghan.geodesy.Ellipsoid
-import org.gavaghan.geodesy.GeodeticCalculator
-import org.gavaghan.geodesy.GlobalCoordinates
-
 
 //////////////////// Note //////////////////////////////
 //
@@ -29,11 +24,6 @@ import org.gavaghan.geodesy.GlobalCoordinates
 // -Dorg.slf4j.simpleLogger.defaultLogLevel=trace
 //
 //////////////////// Note //////////////////////////////
-
-val geoCalc = GeodeticCalculator()
-
-// select a reference elllipsoid
-val reference = Ellipsoid.WGS84
 
 fun main(args: Array<String>) {
   println("Hello World!")
@@ -48,6 +38,7 @@ fun main(args: Array<String>) {
   val greenRun = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
   val tellerRun = "/Users/dkhawk/Downloads/Collecting_data.gpx"
   val boulderValleyRanchRun = "/Users/dkhawk/Downloads/Boulder Valley Ranch.gpx"
+  val runFile = greenRun
 
   val loader = GpsLoaderFactory()
   val gpxLoader = loader.getLoaderByExtention("gpx")
@@ -75,31 +66,25 @@ fun main(args: Array<String>) {
     trail.locations.forEach { location ->
       // Map to the tile
       grid.incrementLatLng(location)
-      // TODO: make a "lineTo" function!
       grid.addSegmentToCell(location, trail.segmentId)
     }
   }
-  //  println(grid)
-  //  println(grid.gridOfSegments.count { it.isNotEmpty() })
 
-  //  val activity = gpxLoader.load(File(tellerRun).inputStream())
-  val activity = gpxLoader.load(File(boulderValleyRanchRun).inputStream())
-  val time = measureNanoTime {
+  val activity = gpxLoader.load(File(runFile).inputStream())
   val candidateSegments = candidateSegments(activity, grid, trails)
 
-    //  println(candidateSegments.joinToString("\n") { it.name })
-
-    val trailScores = percentCompleted(activity, candidateSegments).sortedByDescending { it.first }
-    //    println(trailScores.joinToString("\n") {
-    //      "${it.first.format(2)}: ${it.second.name}, ${it.second.length}, ${it.second.segmentId}"
-    //    })
-  }
-  println(time)
+  val trailScores = scoreTrails(activity, candidateSegments).sortedByDescending { it.first }
+  println(trailScores.joinToString("\n") {
+    "${it.first.format(2)}: ${it.second.name}, ${it.second.length}, ${it.second.segmentId}"
+  })
 }
 
 private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
 
-private fun percentCompleted(activity: LoaderResult, candidateSegments: List<Trail>): List<Pair<Double, Trail>> {
+private fun scoreTrails(
+  activity: LoaderResult,
+  candidateSegments: List<Trail>
+): List<Pair<Double, Trail>> {
   // Create a grid with a thicker line, but smaller tiles
   // smaller tiles, but add the eight neighbors as well
 
@@ -117,9 +102,9 @@ private fun percentCompleted(activity: LoaderResult, candidateSegments: List<Tra
   // The score is the percentage of locations that land in a tile included in the set
 
   return candidateSegments.map { trail ->
-    val matchingLocations = trail.locations.filter { activityTiles.contains(grid.locationToTileCoords(it)) }.count()
+    val matchingLocations =
+      trail.locations.filter { activityTiles.contains(grid.locationToTileCoords(it)) }.count()
     val score = matchingLocations.toDouble() / trail.locations.size
-    println("$matchingLocations of ${trail.locations.size}: $score")
     score to trail
   }
 }
@@ -137,23 +122,6 @@ private fun candidateSegments(
     .flatten()
     .toSet()
     .mapNotNull { trails[it] }
-}
-
-fun getSegmentDistances(trail: Trail, locations: MutableList<Location>): Pair<Double, Location>? {
-//  println(trail.locations)
-
-  return trail.locations.mapNotNull { segmentLocation ->
-    // Ugh.  Not very efficient...  This is n^2.  Should probably segment the activity?
-    // How far to the nearest tracked location?
-    val segmentCoordinates = GlobalCoordinates(segmentLocation.lat, segmentLocation.lng)
-    locations.map { activityLocation ->
-      val activityCoordinates = GlobalCoordinates(activityLocation.lat, activityLocation.lng)
-      val curve = geoCalc.calculateGeodeticCurve(reference, segmentCoordinates, activityCoordinates)
-      val distance = curve.ellipsoidalDistance
-      distance to activityLocation
-    }.minByOrNull { it.first }
-//    println(minDistance)
-  }.maxByOrNull { it.first }
 }
 
 private fun getDatabaseConnection(): FirebaseDatabase {
