@@ -15,7 +15,7 @@ data class LatLngBounds(
     // instantiate the calculator
     val geoCalc = GeodeticCalculator()
 
-    // select a reference elllipsoid
+    // select a reference ellipsoid
     val reference = Ellipsoid.WGS84
 
     val southWest = GlobalCoordinates(minLatitude, minLongitude)

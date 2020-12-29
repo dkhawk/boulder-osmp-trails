@@ -16,7 +16,6 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.system.measureTimeMillis
 
 //////////////////// Note //////////////////////////////
 //
@@ -41,7 +40,7 @@ fun main(args: Array<String>) {
   val runFile = greenRun
 
   val loader = GpsLoaderFactory()
-  val gpxLoader = loader.getLoaderByExtention("gpx")
+  val gpxLoader = loader.getLoaderByExtension("gpx")
 
 //  val database = getDatabaseConnection()
   val trails = readTrailsFromFile(trailTextFilename)
@@ -92,7 +91,7 @@ private fun scoreTrails(
   val activityLocations = activity.segments.flatMap { it.locations }
   val activityBounds = LatLngBounds.createFromLocations(activityLocations)
   val grid = Grid(activityBounds, cellSizeMeters = 20)
-  val activityTiles = activityLocations.map { grid.locationToTileCoords(it) }.toMutableSet()
+  val activityTiles = activityLocations.map { grid.locationToTileCoordinates(it) }.toMutableSet()
   // Now add the eight neighbors for each tile
   val neighbors = activityTiles.map { it.getNeighbors() }.flatten()
   activityTiles.addAll(neighbors)
@@ -103,7 +102,7 @@ private fun scoreTrails(
 
   return candidateSegments.map { trail ->
     val matchingLocations =
-      trail.locations.filter { activityTiles.contains(grid.locationToTileCoords(it)) }.count()
+      trail.locations.filter { activityTiles.contains(grid.locationToTileCoordinates(it)) }.count()
     val score = matchingLocations.toDouble() / trail.locations.size
     score to trail
   }
@@ -116,12 +115,15 @@ private fun candidateSegments(
 ): List<Trail> {
   return activity.segments
     .flatMap { it.locations }
-    .map { location -> grid.locationToTileCoords(location) }
+    .asSequence()
+    .map { location -> grid.locationToTileCoordinates(location) }
     .toSet()
+    .asSequence()
     .mapNotNull { coordinates -> grid.getSegmentsAt(coordinates)?.toList() }
     .flatten()
     .toSet()
     .mapNotNull { trails[it] }
+    .toList()
 }
 
 private fun getDatabaseConnection(): FirebaseDatabase {
@@ -142,7 +144,7 @@ fun readTrailsFromFile(filename: String): Map<String, Trail> {
   return File(filename).readLines().map { line ->
     trailFromString(line)
   }.map { trail ->
-    trail.segmentId!! to trail
+    trail.segmentId to trail
   }.toMap()
 }
 
@@ -178,7 +180,7 @@ fun boundsFromString(boundsCoords: List<String>): LatLngBounds {
 }
 
 private fun Trail.serialize(): String {
-  return "$trailId,$segmentId,\"$name\",$length,${bounds!!.serialize()},${locations!!.serialize()}"
+  return "$trailId,$segmentId,\"$name\",$length,${bounds.serialize()},${locations.serialize()}"
 }
 
 private fun List<Location>.serialize(): String {
@@ -194,13 +196,13 @@ private fun LatLngBounds.serialize(): String {
 }
 
 fun readFromKml(loader: GpsLoaderFactory, trailDataFileName: String): Map<String, Trail> {
-  val kmlLoader = loader.getLoaderByExtention("kml")
+  val kmlLoader = loader.getLoaderByExtension("kml")
 //    val time = measureTimeMillis {
   val trailsData = kmlLoader.load(File(trailDataFileName).inputStream())
   println("Loaded ${trailsData.segments.size} trails")
   return trailsData.segments.map {
     val trail = Trail.from(it)
-    trail.segmentId!! to trail
+    trail.segmentId to trail
   }.toMap()
 }
 

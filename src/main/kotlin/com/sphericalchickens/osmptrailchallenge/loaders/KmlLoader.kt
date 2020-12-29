@@ -48,57 +48,6 @@ class KmlLoader : GpsLoader {
         return LoaderResult(segments)
     }
 
-    /*
-    private fun parseWaypoints(doc: Document): ArrayList<Waypoint> {
-        val waypoints = ArrayList<Waypoint>()
-
-        val waypointList = xPath.compile("//Placemark/Point").evaluate(doc, XPathConstants.NODESET) as NodeList
-
-        for (i in 0 until waypointList.length) {
-            val waypoint = Waypoint()
-            val waypointNode = waypointList.item(i)
-            var valid = false
-
-            // Get the coordinates
-            for (j in 0 until waypointNode.childNodes.length) {
-                val childNode = waypointNode.childNodes.item(j)
-                if ("coordinates" == childNode.nodeName) {
-                    childNode.textContent?.let { line ->
-                        val parts = line.split(",")
-                        if (parts.size >= 2) {
-                            val (lng, lat, el) = parts.map {
-                                it.toDoubleOrNull()
-                            }
-                            if (lng != null && lat != null) {
-                                waypoint.location = Location(lat, lng, el)
-                                valid = true
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Get the name
-            val placemarkChildren = waypointNode.parentNode.childNodes
-            for (j in 0 until placemarkChildren.length) {
-                val childNode = placemarkChildren.item(j)
-                when (childNode.nodeName.toLowerCase()) {
-                    "name" -> waypoint.name = childNode.textContent
-                    "snippet" -> waypoint.snippet = childNode.textContent
-                    "description" -> waypoint.description = childNode.textContent
-                }
-            }
-
-            if (valid) {
-                waypoints.add(waypoint)
-            }
-        }
-
-//            val waypointNodes = doc.getElementsByTagName("Point")
-        return waypoints
-    }
-    */
-
     private fun parseSegments(doc: Document): List<Segment> {
         val segments = ArrayList<Segment>()
 
@@ -134,13 +83,7 @@ class KmlLoader : GpsLoader {
 
         val xPathCompiled = xPath.compile(nameExpression)
         return (0 until placemarkNodes.length).map { i ->
-//        val segs = (0 until 10).map { i ->
             val placemarkNode = placemarkNodes.item(i)
-//            val nodeList =
-//                xPath.compile(expression).evaluate(placemarkNode, XPathConstants.NODESET) as NodeList
-//            println(nodeList.length)
-//            nodeList.item(0).attributes
-
             val nodeList = xPathCompiled.evaluate(placemarkNode, XPathConstants.NODESET) as NodeList
             val attributes = (0 until nodeList.length).mapNotNull { nodeIndex ->
                 val item = nodeList.item(nodeIndex)
@@ -168,16 +111,6 @@ class KmlLoader : GpsLoader {
 
             segment
         }
-
-//        println(segs.subList(0, 3).joinToString("\n"))
-
-//        return segs.map { (attributes, locations) ->
-//            val segment = Segment()
-//            segment.name = attributes["GISPROD3OSMPTrailsOSMPTRAILNAME"] ?: "unknown"
-//            segment.locations.addAll(locations!!)
-//            segment.length = UnitsUtility.feetToMeters(attributes["SHAPESTLength"]?.toDouble() ?: 0.0).roundToInt()
-//            segment
-//        }
     }
 
     private fun parseCoordsString(coordsString: String): MutableList<Location> {

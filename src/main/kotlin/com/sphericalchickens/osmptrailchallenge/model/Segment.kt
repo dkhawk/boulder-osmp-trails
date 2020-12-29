@@ -11,7 +11,7 @@ class Segment {
 
             val gain = UnitsUtility.metersToFeet(gain).roundToInt()
             val loss = UnitsUtility.metersToFeet(loss).roundToInt()
-            summaryString = "${distString} miles (+${gain}/-${loss} feet)"
+            summaryString = "$distString miles (+$gain/-$loss feet)"
         }
 
         return summaryString!!
@@ -30,10 +30,10 @@ class Segment {
     var length: Int = 0
 
     // Gain in meters
-    var gain: Int = 0
+    private var gain: Int = 0
 
     // Loss in meters
-    var loss: Int = 0
+    private var loss: Int = 0
 
     var minElevation: Int = Int.MAX_VALUE
     var maxElevation: Int = Int.MIN_VALUE
@@ -46,7 +46,7 @@ class Segment {
 
     var orderNumber: Int? = 0
 
-    var summaryString: String? = null
+    private var summaryString: String? = null
 
 //    fun addToBounds(llBuilder: LatLngBounds.Builder) {
 //        llBuilder.include(bounds.northeast)

@@ -5,9 +5,9 @@ import kotlin.math.ceil
 class Grid(bounds: LatLngBounds, borderWidth: Int = 1, cellSizeMeters: Int = 200) {
   private val width: Int
   private val height: Int
-  val grid = mutableListOf<Int>()
-  val gridOfSegments = mutableListOf<MutableSet<String>>()
-  var segmentsMap = HashMap<Coordinates, MutableSet<String>>()
+  private val grid = mutableListOf<Int>()
+  private val gridOfSegments = mutableListOf<MutableSet<String>>()
+  private var segmentsMap = HashMap<Coordinates, MutableSet<String>>()
   private val minLat: Double
   private val minLng: Double
 
@@ -47,26 +47,13 @@ class Grid(bounds: LatLngBounds, borderWidth: Int = 1, cellSizeMeters: Int = 200
     }
   }
 
-  fun toStringLocationCounts(): String {
-    // Flip such that y increases going up!
-    return grid.windowed(width, width).map { row ->
-      row.joinToString("") { value ->
-        if (value > 0) {
-          " ${value.coerceAtMost(99).toString().padStart(2, '0')} "
-        } else {
-          " .. "
-        }
-      }
-    }.reversed().joinToString("\n")
-  }
-
   override fun toString(): String {
     // Flip such that y increases going up!
     return gridOfSegments.windowed(width, width).map { row ->
       row.joinToString("") { value ->
         val count = value.size
         if (count > 0) {
-          "${count.coerceAtMost(9).toString().padStart(1, '0')}"
+          count.coerceAtMost(9).toString().padStart(1, '0')
         } else {
           "."
         }.padEnd(1,' ').padStart(1,' ')
@@ -74,9 +61,8 @@ class Grid(bounds: LatLngBounds, borderWidth: Int = 1, cellSizeMeters: Int = 200
     }.reversed().joinToString("\n")
   }
 
-  fun increment(x: Int, y: Int) {
-    val index = getIndex(x, y)
-    grid[index] += 1
+  private fun increment(x: Int, y: Int) {
+    grid[getIndex(x, y)] += 1
   }
 
   private fun getIndex(x: Int, y: Int): Int {
@@ -86,29 +72,28 @@ class Grid(bounds: LatLngBounds, borderWidth: Int = 1, cellSizeMeters: Int = 200
   }
 
   fun incrementLatLng(location: Location) {
-    val coordinates = locationToTileCoords(location)
+    val coordinates = locationToTileCoordinates(location)
     increment(coordinates.x, coordinates.y)
   }
 
   fun addSegmentToCell(location: Location, segmentId: String) {
-    val (col, row) = locationToTileCoords(location)
+    val (col, row) = locationToTileCoordinates(location)
     addSegmentToCell(col, row, segmentId)
   }
 
-  fun locationToTileCoords(location: Location): Coordinates {
+  fun locationToTileCoordinates(location: Location): Coordinates {
     val y = (((location.lat - minLat) / latDegrees) * nsNumCells).toInt()
     val x = (((location.lng - minLng) / lngDegrees) * ewNumCells).toInt()
     return Coordinates(x = x, y = y)
   }
 
   private fun addSegmentToCell(x: Int, y: Int, segmentId: String) {
-    val index = getIndex(x, y)
-    gridOfSegments[index].add(segmentId)
-    val coords = Coordinates(x = x, y = y)
-    if (!segmentsMap.containsKey(coords)) {
-      segmentsMap[coords] = mutableSetOf()
+    gridOfSegments[getIndex(x, y)].add(segmentId)
+    val coordinates = Coordinates(x = x, y = y)
+    if (!segmentsMap.containsKey(coordinates)) {
+      segmentsMap[coordinates] = mutableSetOf()
     }
-    segmentsMap[coords]?.add(segmentId)
+    segmentsMap[coordinates]?.add(segmentId)
   }
 
   fun getSegmentsAt(coordinates: Coordinates): MutableSet<String>? {
