@@ -116,4 +116,30 @@ class Grid(bounds: LatLngBounds, borderWidth: Int = 1, cellSizeMeters: Int = 200
   }
 }
 
-data class Coordinates(val x: Int, val y: Int)
+data class Coordinates(val x: Int, val y: Int) {
+  fun getNeighbors(): List<Coordinates> {
+    return Heading8.values().map { heading->
+      this + heading.vector
+    }
+  }
+
+  operator fun plus(vector: Vector): Coordinates = Coordinates(x + vector.dx, y + vector.dy)
+  operator fun minus(vector: Vector): Coordinates = Coordinates(x - vector.dx, y - vector.dy)
+}
+
+enum class Heading8(val vector: Vector) {
+  NORTH(Vector(0, -1)),
+  NORTHEAST(Vector(1, -1)),
+  EAST(Vector(1, 0)),
+  SOUTHEAST(Vector(1, 1)),
+  SOUTH(Vector(0, 1)),
+  SOUTHWEST(Vector(-1, 1)),
+  WEST(Vector(-1, 0)),
+  NORTHWEST(Vector(-1, -1));
+}
+
+data class Vector(val dx: Int, val dy: Int) {
+  operator fun times(scale: Int): Vector {
+    return Vector(dx * scale, dy * scale)
+  }
+}

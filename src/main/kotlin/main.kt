@@ -16,6 +16,8 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.system.measureNanoTime
+import kotlin.system.measureTimeMillis
 import org.gavaghan.geodesy.Ellipsoid
 import org.gavaghan.geodesy.GeodeticCalculator
 import org.gavaghan.geodesy.GlobalCoordinates
@@ -45,6 +47,7 @@ fun main(args: Array<String>) {
 
   val greenRun = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
   val tellerRun = "/Users/dkhawk/Downloads/Collecting_data.gpx"
+  val boulderValleyRanchRun = "/Users/dkhawk/Downloads/Boulder Valley Ranch.gpx"
 
   val loader = GpsLoaderFactory()
   val gpxLoader = loader.getLoaderByExtention("gpx")
@@ -56,20 +59,15 @@ fun main(args: Array<String>) {
 //  writeTrailsToFile("/Users/dkhawk/Downloads/gregory.txt", trails)
 //  readFromDatabase(database)
 
-  // TODO: before writing to the database, be sure to convert to
-//  writeToDatabase(database, trails)
+  // TODO: before writing to the database, be sure to convert to the compressed LatLng format used
+  // by the maps API
+  //  writeToDatabase(database, trails)
 
   // TODO: not happy about this sleep for reading from the database.
-//  Thread.sleep(5000)
+  //  Thread.sleep(5000)
 
   // Now calculate the bounds of all the trails
-    val bounds = LatLngBounds.createFromBounds(trails.map { (_, value) -> value.bounds })
-//  val bounds = LatLngBounds(
-//    minLatitude = 39.9139860039965,
-//    minLongitude = -105.406643752203,
-//    maxLatitude = 40.1164546952824,
-//    maxLongitude = -105.131874521385
-//  )
+  val bounds = LatLngBounds.createFromBounds(trails.map { (_, value) -> value.bounds })
 
   val grid = Grid(bounds, borderWidth = 1, cellSizeMeters = 100)
 
@@ -84,59 +82,61 @@ fun main(args: Array<String>) {
   //  println(grid)
   //  println(grid.gridOfSegments.count { it.isNotEmpty() })
 
+  //  val activity = gpxLoader.load(File(tellerRun).inputStream())
+  val activity = gpxLoader.load(File(boulderValleyRanchRun).inputStream())
+  val time = measureNanoTime {
+  val candidateSegments = candidateSegments(activity, grid, trails)
 
-  val activity = gpxLoader.load(File(tellerRun).inputStream())
-//  val activity = gpxLoader.load(File(greenRun).inputStream())
-  completedSegments(activity, grid, trails)
+    //  println(candidateSegments.joinToString("\n") { it.name })
+
+    val trailScores = percentCompleted(activity, candidateSegments).sortedByDescending { it.first }
+    //    println(trailScores.joinToString("\n") {
+    //      "${it.first.format(2)}: ${it.second.name}, ${it.second.length}, ${it.second.segmentId}"
+    //    })
+  }
+  println(time)
 }
 
-private fun completedSegments(
+private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
+
+private fun percentCompleted(activity: LoaderResult, candidateSegments: List<Trail>): List<Pair<Double, Trail>> {
+  // Create a grid with a thicker line, but smaller tiles
+  // smaller tiles, but add the eight neighbors as well
+
+  // Calculate the bounds of activity
+  val activityLocations = activity.segments.flatMap { it.locations }
+  val activityBounds = LatLngBounds.createFromLocations(activityLocations)
+  val grid = Grid(activityBounds, cellSizeMeters = 20)
+  val activityTiles = activityLocations.map { grid.locationToTileCoords(it) }.toMutableSet()
+  // Now add the eight neighbors for each tile
+  val neighbors = activityTiles.map { it.getNeighbors() }.flatten()
+  activityTiles.addAll(neighbors)
+
+
+  // For each candidate, check the number of points included in the set of tiles for the activity
+  // The score is the percentage of locations that land in a tile included in the set
+
+  return candidateSegments.map { trail ->
+    val matchingLocations = trail.locations.filter { activityTiles.contains(grid.locationToTileCoords(it)) }.count()
+    val score = matchingLocations.toDouble() / trail.locations.size
+    println("$matchingLocations of ${trail.locations.size}: $score")
+    score to trail
+  }
+}
+
+private fun candidateSegments(
   activity: LoaderResult,
   grid: Grid,
   trails: Map<String, Trail>
-) {
-  //  println(activity.segments.first().locations.size)
-  val activityTiles = activity.segments.first().locations.map { location ->
-    grid.locationToTileCoords(location)
-  }.toSet()
-//  println(activityTiles.sortedWith( compareBy({ it.y }, { it.x })).joinToString("\n"))
-
-  val segsId = activityTiles.mapNotNull { coordinates ->
-    grid.getSegmentsAt(coordinates)?.toList()
-  }.flatten().toSet()
-
-  println(segsId)
-  val segs = segsId.mapNotNull { trails[it] }
-  println(segsId.map { trails[it]?.name }.joinToString("\n"))
-
-  val bounds2 = LatLngBounds.createFromBounds(segs.map { value -> value.bounds })
-
-  val newGrid = Grid(bounds2)
-  segs.forEach { trail ->
-    trail.locations.forEach { location ->
-      // Map to the tile
-      newGrid.incrementLatLng(location)
-      // TODO: make a "lineTo" function!
-      newGrid.addSegmentToCell(location, trail.segmentId)
-    }
-  }
-
-  println(newGrid)
-
-  println()
-
-  val segmentsWithError = segs.map { segment ->
-    // This seems subject to noise?
-    val maxError = getSegmentDistances(segment, activity.segments.first().locations)
-    maxError to segment
-  }
-
-  val (hits, misses) = segmentsWithError.partition { errorMeasure ->
-    errorMeasure.first!!.first < 200
-  }
-
-  println("Completed: ${hits.joinToString { it.second.name }}")
-  println("Not completed: ${misses.joinToString { it.second.name }}")
+): List<Trail> {
+  return activity.segments
+    .flatMap { it.locations }
+    .map { location -> grid.locationToTileCoords(location) }
+    .toSet()
+    .mapNotNull { coordinates -> grid.getSegmentsAt(coordinates)?.toList() }
+    .flatten()
+    .toSet()
+    .mapNotNull { trails[it] }
 }
 
 fun getSegmentDistances(trail: Trail, locations: MutableList<Location>): Pair<Double, Location>? {
