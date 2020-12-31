@@ -21,7 +21,6 @@ data class LatLngBounds(
     val southWest = GlobalCoordinates(minLatitude, minLongitude)
     val northWest = GlobalCoordinates(maxLatitude, minLongitude)
     val southEast = GlobalCoordinates(minLatitude, maxLongitude)
-    val northEast = GlobalCoordinates(maxLatitude, maxLongitude)
 
     // calculate the geodetic curve
     val northSouthCurve = geoCalc.calculateGeodeticCurve(reference, southWest, northWest)
@@ -31,6 +30,12 @@ data class LatLngBounds(
     val eastWestDistance = eastWestCurve.ellipsoidalDistance
 
     return Pair(northSouthDistance, eastWestDistance)
+  }
+
+  fun latDegrees(): Double = maxLatitude - minLatitude
+  fun lngDegrees(): Double = maxLongitude - minLongitude
+  fun serialize(): String {
+    return "$minLatitude,$minLongitude,$maxLatitude,$maxLongitude"
   }
 
   companion object {
@@ -67,6 +72,13 @@ data class LatLngBounds(
       }
 
       return LatLngBounds(minLatitude, minLongitude, maxLatitude, maxLongitude)
+    }
+
+    fun fromString(boundsCoords: List<String>): LatLngBounds {
+      return LatLngBounds(
+        boundsCoords[0].toDouble(), boundsCoords[1].toDouble(),
+        boundsCoords[2].toDouble(), boundsCoords[3].toDouble()
+      )
     }
   }
 }
