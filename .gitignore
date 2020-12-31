@@ -22,3 +22,13 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 /out/production/OSMPTrailChallenge/META-INF/OSMPTrailChallenge.kotlin_module
+
+# Mac system files & Python biz
+.DS_Store
+.pyc
+__pycache__
+.idea/
+*.csv
+env/*
+*secrets*.txt
+*.pickle
