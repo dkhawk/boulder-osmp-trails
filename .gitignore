@@ -23,7 +23,8 @@
 hs_err_pid*
 /out/production/OSMPTrailChallenge/META-INF/OSMPTrailChallenge.kotlin_module
 
-# Mac system files
+# Mac system files & Python biz
 .DS_Store
 .pyc
 __pycache__
+.idea/
