@@ -65,8 +65,9 @@ if os.path.exists(path_to_save):
 # let's hold on that for now and just get this going first.
 athlete_info = client.get_athlete()
 
-print("hey there {}, how ya doin on this fine day? Im gonna grab your"
-      "\nStrava activities next. You hold on now, ya hear?!".format(athlete_info.firstname))
+print("Hey there {}, how ya doin on this fine day? Im gonna grab your"
+      "\nStrava activities next starting from Dec 1, 2020. You hold on now, "
+      "\n ya hear?!".format(athlete_info.firstname))
 
 # Grab activities and turn into df
 print("Be patient - this may take a minute")
@@ -81,9 +82,10 @@ all_runs_hikes = all_activities[all_activities.type.isin(act_types)]
 # TODO: We may not need distance or time?
 types = ['time', 'distance', 'latlng']
 
-gdf_list=[]
-for i, act in enumerate(all_runs_hikes["activity_id"].values[0:2]):
-        # Turn this into a small helper
+print("Next I will get your run GPS data.")
+gdf_list = []
+for i, act in enumerate(all_runs_hikes["activity_id"].values):
+        # TODO: Turn this into a small helper
         act_data = client.get_activity_streams(act,
                                                types=types)
         # print(act)
@@ -97,7 +99,7 @@ for i, act in enumerate(all_runs_hikes["activity_id"].values[0:2]):
                 print(
                     "LatLon is missing from activity {}. Moving to next activity".format(act))
 
-print("you have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
+print("You have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
 print(datetime.now())
 act_gps_df = pd.DataFrame(gdf_list,
                           columns=["activity_id", "xy"])
