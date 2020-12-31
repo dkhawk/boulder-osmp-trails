@@ -1,21 +1,17 @@
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
-import com.google.firebase.database.ChildEventListener
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
-import com.sphericalchickens.osmptrailchallenge.loaders.LoaderResult
 import com.sphericalchickens.osmptrailchallenge.model.Grid
-import com.sphericalchickens.osmptrailchallenge.model.LatLngBounds
-import com.sphericalchickens.osmptrailchallenge.model.Location
 import com.sphericalchickens.osmptrailchallenge.model.Trail
-import java.io.File
 import java.io.FileInputStream
-import java.io.FileWriter
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+
 
 //////////////////// Note //////////////////////////////
 //
@@ -25,14 +21,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 //////////////////// Note //////////////////////////////
 
 fun main(args: Array<String>) {
-  println("Hello World!")
+  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails.kml"
 
-//  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails.kml"
-//  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails_truncated.kml"
-//  val trailDataFileName = "/Users/dkhawk/Downloads/gregory.kml"
-
-//  val trailTextFilename = "/Users/dkhawk/Downloads/gregory.txt"
   val trailTextFilename = "/Users/dkhawk/Downloads/OSMP-trails.txt"
+  val gridTextFilename = "/Users/dkhawk/Downloads/grid.txt"
 
   val greenRun = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
   val tellerRun = "/Users/dkhawk/Downloads/Collecting_data.gpx"
@@ -40,91 +32,37 @@ fun main(args: Array<String>) {
   val runFile = greenRun
 
   val loader = GpsLoaderFactory()
-  val gpxLoader = loader.getLoaderByExtension("gpx")
+  val database = getDatabaseConnection()
 
-//  val database = getDatabaseConnection()
-  val trails = readTrailsFromFile(trailTextFilename)
+  val controller = TrailChallengeController(loader, database)
+  controller.loadTrailsFromFile(trailTextFilename)
+  controller.loadGridFromFile(gridTextFilename)
 
-//  val trails = readFromKml(loader, trailDataFileName)
-//  writeTrailsToFile("/Users/dkhawk/Downloads/gregory.txt", trails)
-//  readFromDatabase(database)
-
-  // TODO: before writing to the database, be sure to convert to the compressed LatLng format used
-  // by the maps API
-  //  writeToDatabase(database, trails)
-
-  // TODO: not happy about this sleep for reading from the database.
-  //  Thread.sleep(5000)
-
-  // Now calculate the bounds of all the trails
-  val bounds = LatLngBounds.createFromBounds(trails.map { (_, value) -> value.bounds })
-
-  val grid = Grid(bounds, borderWidth = 1, cellSizeMeters = 100)
-
-  trails.entries.forEach { (_, trail) ->
-    trail.locations.forEach { location ->
-      // Map to the tile
-      grid.incrementLatLng(location)
-      grid.addSegmentToCell(location, trail.segmentId)
-    }
+  val readFromFiles = true
+  if (readFromFiles) {
+    controller.loadTrailsFromFile(trailTextFilename)
+    controller.loadGridFromFile(gridTextFilename)
+  } else {
+    controller.loadTrailsFromKml(trailDataFileName)
+    controller.createGridFromTrails()
   }
 
-  val activity = gpxLoader.load(File(runFile).inputStream())
-  val candidateSegments = candidateSegments(activity, grid, trails)
+  controller.processActivity(runFile)
 
-  val trailScores = scoreTrails(activity, candidateSegments).sortedByDescending { it.first }
-  println(trailScores.joinToString("\n") {
-    "${it.first.format(2)}: ${it.second.name}, ${it.second.length}, ${it.second.segmentId}"
-  })
+  val completedSegments = controller.processActivity(runFile).map { it.second }
+
+  // This is my athlete id
+  val athleteId = 929553
+//  val activityId = 4530386447
+//  val activityDate = TrailChallengeController.ISO_8601_FORMAT.parse("2020-12-28T14:04:000Z")
+  val activityId = 4508595960
+  val activityDate = TrailChallengeController.ISO_8601_FORMAT.parse("2020-12-23T11:34:000Z")
+  // 5:35 AM on Wednesday, December 23, 2020
+
+  controller.updateSegmentsForAthlete(athleteId, activityId, activityDate, completedSegments)
 }
 
 private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
-
-private fun scoreTrails(
-  activity: LoaderResult,
-  candidateSegments: List<Trail>
-): List<Pair<Double, Trail>> {
-  // Create a grid with a thicker line, but smaller tiles
-  // smaller tiles, but add the eight neighbors as well
-
-  // Calculate the bounds of activity
-  val activityLocations = activity.segments.flatMap { it.locations }
-  val activityBounds = LatLngBounds.createFromLocations(activityLocations)
-  val grid = Grid(activityBounds, cellSizeMeters = 20)
-  val activityTiles = activityLocations.map { grid.locationToTileCoordinates(it) }.toMutableSet()
-  // Now add the eight neighbors for each tile
-  val neighbors = activityTiles.map { it.getNeighbors() }.flatten()
-  activityTiles.addAll(neighbors)
-
-
-  // For each candidate, check the number of points included in the set of tiles for the activity
-  // The score is the percentage of locations that land in a tile included in the set
-
-  return candidateSegments.map { trail ->
-    val matchingLocations =
-      trail.locations.filter { activityTiles.contains(grid.locationToTileCoordinates(it)) }.count()
-    val score = matchingLocations.toDouble() / trail.locations.size
-    score to trail
-  }
-}
-
-private fun candidateSegments(
-  activity: LoaderResult,
-  grid: Grid,
-  trails: Map<String, Trail>
-): List<Trail> {
-  return activity.segments
-    .flatMap { it.locations }
-    .asSequence()
-    .map { location -> grid.locationToTileCoordinates(location) }
-    .toSet()
-    .asSequence()
-    .mapNotNull { coordinates -> grid.getSegmentsAt(coordinates)?.toList() }
-    .flatten()
-    .toSet()
-    .mapNotNull { trails[it] }
-    .toList()
-}
 
 private fun getDatabaseConnection(): FirebaseDatabase {
   val serviceAccount =
@@ -140,119 +78,67 @@ private fun getDatabaseConnection(): FirebaseDatabase {
   return FirebaseDatabase.getInstance()
 }
 
-fun readTrailsFromFile(filename: String): Map<String, Trail> {
-  return File(filename).readLines().map { line ->
-    trailFromString(line)
-  }.map { trail ->
-    trail.segmentId to trail
-  }.toMap()
-}
+fun readGridFromDatabase(database: FirebaseDatabase, callback: () -> Unit) {
+  val ref: DatabaseReference = database.getReference("trails")
+  val gridRef = ref.child("grid")
 
-fun writeTrailsToFile(filename: String, trails: Map<String, Trail>) {
-  FileWriter(filename).use { writer ->
-    trails.entries.forEach { trailEntry ->
-      writer.write(trailEntry.value.serialize())
-      writer.write("\n")
-    }
-  }
-}
-
-fun trailFromString(line: String): Trail {
-  val parts = line.split(",")
-  val trailId = parts[0]
-  val segmentId = parts[1]
-  val name = parts[2].trim('"')
-  val length = parts[3].toInt()
-  val bounds = boundsFromString(parts.subList(4, 4 + 4))
-  val locations = locationsFromString(parts.subList(4 + 4, parts.size))
-  return Trail(trailId, segmentId, name, length, bounds, locations)
-}
-
-fun locationsFromString(coords: List<String>): List<Location> {
-  return coords.windowed(2, 2).map { Location(it[0].toDouble(), it[1].toDouble()) }
-}
-
-fun boundsFromString(boundsCoords: List<String>): LatLngBounds {
-  return LatLngBounds(
-    boundsCoords[0].toDouble(), boundsCoords[1].toDouble(),
-    boundsCoords[2].toDouble(), boundsCoords[3].toDouble()
-  )
-}
-
-private fun Trail.serialize(): String {
-  return "$trailId,$segmentId,\"$name\",$length,${bounds.serialize()},${locations.serialize()}"
-}
-
-private fun List<Location>.serialize(): String {
-  return joinToString(",") { it.serialize() }
-}
-
-private fun Location.serialize(): String {
-  return "$lat,$lng"
-}
-
-private fun LatLngBounds.serialize(): String {
-  return "$minLatitude,$minLongitude,$maxLatitude,$maxLongitude"
-}
-
-fun readFromKml(loader: GpsLoaderFactory, trailDataFileName: String): Map<String, Trail> {
-  val kmlLoader = loader.getLoaderByExtension("kml")
-//    val time = measureTimeMillis {
-  val trailsData = kmlLoader.load(File(trailDataFileName).inputStream())
-  println("Loaded ${trailsData.segments.size} trails")
-  return trailsData.segments.map {
-    val trail = Trail.from(it)
-    trail.segmentId to trail
-  }.toMap()
-}
-
-fun readFromDatabase(database: FirebaseDatabase) {
-  val ref: DatabaseReference? = database.getReference("osmp/trails/by-segment-id/trails")
-
-//    ref!!.addValueEventListener(object : ValueEventListener {
-//      override fun onDataChange(dataSnapshot: DataSnapshot) {
-//        val trail = dataSnapshot.getValue(Trail::class.java)
-//        println(trail)
-//      }
-//
-//      override fun onCancelled(databaseError: DatabaseError) {
-//        println("The read failed: " + databaseError.code)
-//      }
-//    })
-
-  ref!!.addChildEventListener(object : ChildEventListener {
-    override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-      val trail = snapshot.getValue(Trail::class.java)
-      println(trail)
+  gridRef.addValueEventListener(object : ValueEventListener {
+    override fun onDataChange(dataSnapshot: DataSnapshot) {
+      val grid = dataSnapshot.getValue(Grid::class.java)
+      println(grid)
+      callback.invoke()
     }
 
-    override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-      TODO("Not yet implemented")
-    }
-
-    override fun onChildRemoved(snapshot: DataSnapshot) {
-    }
-
-    override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-      TODO("Not yet implemented")
-    }
-
-    override fun onCancelled(error: DatabaseError?) {
-      println("The read failed: " + error?.code)
+    override fun onCancelled(databaseError: DatabaseError) {
+      println("The read failed: " + databaseError.code)
     }
   })
+
+//  gridRef.addChildEventListener(object : ChildEventListener {
+//    override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+//      val grid = snapshot.getValue(Grid::class.java)
+//      println(grid)
+//      callback.invoke()
+//    }
+//
+//    override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+//    }
+//
+//    override fun onChildRemoved(snapshot: DataSnapshot) {
+//    }
+//
+//    override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
+//    }
+//
+//    override fun onCancelled(error: DatabaseError?) {
+//      println("The read failed: " + error?.code)
+//    }
+//  })
 }
 
-fun writeToDatabase(database: FirebaseDatabase, trails: Map<String, Trail>) {
-  val ref: DatabaseReference? = database.getReference("osmp/trails/by-segment-id")
-  val usersRef = ref!!.child("trails")
+fun writeTrailsToDatabase(database: FirebaseDatabase, trails: Map<String, Trail>, grid: Grid) {
+  val ref: DatabaseReference = database.getReference("trails")
 
-  val done = AtomicBoolean(false)
-  usersRef.setValue(trails) { _, _ ->
-    done.set(true)
+  val done = AtomicInteger(2)
+
+  val metadataRef = ref.child("metadata")
+  val metadata = trails.map { it.key to it.value.metadata }.subList(0, 1)
+  metadataRef.setValue(metadata) { _, _ ->
+    done.decrementAndGet()
   }
 
-  while (!done.get()) {
+  val locationsRef = ref.child("locations")
+  val locations = trails.map { it.key to it.value.locations }.subList(0, 1)
+  locationsRef.setValue(locations) { _, _ ->
+    done.decrementAndGet()
+  }
+
+//  val gridRef = ref.child("grid")
+//  gridRef.setValue(grid) { _, _ ->
+//    done.decrementAndGet()
+//  }
+
+  while (done.get() > 0) {
     Thread.sleep(100)
   }
 }
