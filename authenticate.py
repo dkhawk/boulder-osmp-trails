@@ -97,10 +97,10 @@ for i, act in enumerate(all_runs_hikes["activity_id"].values[0:2]):
                 print(
                     "LatLon is missing from activity {}. Moving to next activity".format(act))
 
-    print("you have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
-    print(datetime.now())
-    act_gps_df = pd.DataFrame(gdf_list,
-                      columns=["activity_id", "xy"])
+print("you have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
+print(datetime.now())
+act_gps_df = pd.DataFrame(gdf_list,
+                          columns=["activity_id", "xy"])
 print("Next, I'll export your hiking & running GPS data. Hold on".format(i))
 
 gps_data_path = athlete_info.firstname + "_gps_data.csv"
@@ -108,10 +108,4 @@ act_gps_df.to_csv(gps_data_path)
 print("I've saved a file called {} for you. ".format(gps_data_path))
 
 
-
-
-#activity_data=client.get_activity_streams(df['id'][activity_number], types=types)
-
-act = 4506113699
-activity_data = client.get_activity_streams(act, types=types)
 
