@@ -1,5 +1,7 @@
 """A module with helper functions to process data."""
 
+from datetime import datetime
+
 from shapely.geometry import LineString, Point
 import pandas as pd
 
@@ -11,10 +13,11 @@ def swap(x):
 
 
 def get_activities(client):
-    """Grab all activities and turn into df
+    """Grab all activities and turn into df.
+     Finally export to a csv file
      TODO: add a limit or date span to this as an input
-     Grabs all activities after dec 1 2020 for the time being
-     Does this need to be flexible?
+     Grabs all activities after Dec 1 2020 for the time being
+     Does this need to be flexible to allow a date input?
 
      Parameters
      ----------
@@ -24,11 +27,12 @@ def get_activities(client):
      Returns
      -------
         Pandas DataFrame w all activities collected from strava
+        Writes out a csv file to the users current working dir.
      """
     # Specify date range to return activities for
     # TODO - decide on activity date to return activities for
     # after = "2020-01-01T00:00:00Z"
-    activities = client.get_activities(after="2020-01-01T00:00:00Z")
+    activities = client.get_activities(after="2020-11-30T00:00:00Z")
 
     # Generate a dataframe of all activities
     my_cols = ['name',
@@ -59,3 +63,41 @@ def get_activities(client):
     all_activities_df.to_csv(csv_path)
 
     return all_activities_df
+
+
+def get_act_gps(client, act_df, athlete_info):
+    """
+
+    :param act_dr:
+    :return:
+    """
+    # Next, grab all spatial data
+    # TODO: We may not need distance or time?
+    types = ['time', 'distance', 'latlng']
+
+    print("Next I will get your run GPS data.")
+    gdf_list = []
+    for i, act in enumerate(act_df["activity_id"].values):
+
+        act_data = client.get_activity_streams(act,
+                                               types=types)
+        # print(act)
+        # Some activities have no information associated with them
+        if act_data:
+            try:
+                gdf_list.append([act,
+                                 act_data["latlng"].data])
+            except KeyError:
+                # some activities have no gps data like swimming and short activities
+                print(
+                    "LatLon is missing from activity {}. Moving to next activity".format(act))
+
+    print("You have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
+    print(datetime.now())
+    act_gps_df = pd.DataFrame(gdf_list,
+                              columns=["activity_id", "xy"])
+    print("Next, I'll export your hiking & running GPS data. Hold on".format(i))
+
+    gps_data_path = athlete_info.firstname + "_gps_data.csv"
+    act_gps_df.to_csv(gps_data_path)
+    print("I've saved a file called {} for you.".format(gps_data_path))

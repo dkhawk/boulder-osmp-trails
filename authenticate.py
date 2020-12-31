@@ -78,36 +78,38 @@ all_activities = strava_clean.get_activities(client)
 act_types = ["Run", "Hike", "Walk"]
 all_runs_hikes = all_activities[all_activities.type.isin(act_types)]
 
-# Next, grab all spatial data
-# TODO: We may not need distance or time?
-types = ['time', 'distance', 'latlng']
+strava_clean.get_act_gps(client, all_runs_hikes, athlete_info)
 
-print("Next I will get your run GPS data.")
-gdf_list = []
-for i, act in enumerate(all_runs_hikes["activity_id"].values):
-        # TODO: Turn this into a small helper
-        act_data = client.get_activity_streams(act,
-                                               types=types)
-        # print(act)
-        # Some activities have no information associated with them
-        if act_data:
-            try:
-                gdf_list.append([act,
-                                 act_data["latlng"].data])
-            except KeyError:
-                # some activities have no gps data like swimming and short activities
-                print(
-                    "LatLon is missing from activity {}. Moving to next activity".format(act))
-
-print("You have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
-print(datetime.now())
-act_gps_df = pd.DataFrame(gdf_list,
-                          columns=["activity_id", "xy"])
-print("Next, I'll export your hiking & running GPS data. Hold on".format(i))
-
-gps_data_path = athlete_info.firstname + "_gps_data.csv"
-act_gps_df.to_csv(gps_data_path)
-print("I've saved a file called {} for you. ".format(gps_data_path))
+# # Next, grab all spatial data
+# # TODO: We may not need distance or time?
+# types = ['time', 'distance', 'latlng']
+#
+# print("Next I will get your run GPS data.")
+# gdf_list = []
+# for i, act in enumerate(all_runs_hikes["activity_id"].values):
+#         # TODO: Turn this into a small helper
+#         act_data = client.get_activity_streams(act,
+#                                                types=types)
+#         # print(act)
+#         # Some activities have no information associated with them
+#         if act_data:
+#             try:
+#                 gdf_list.append([act,
+#                                  act_data["latlng"].data])
+#             except KeyError:
+#                 # some activities have no gps data like swimming and short activities
+#                 print(
+#                     "LatLon is missing from activity {}. Moving to next activity".format(act))
+#
+# print("You have made {} requests. Strava limits requests to 600 every 15 mins".format(i))
+# print(datetime.now())
+# act_gps_df = pd.DataFrame(gdf_list,
+#                           columns=["activity_id", "xy"])
+# print("Next, I'll export your hiking & running GPS data. Hold on".format(i))
+#
+# gps_data_path = athlete_info.firstname + "_gps_data.csv"
+# act_gps_df.to_csv(gps_data_path)
+# print("I've saved a file called {} for you. ".format(gps_data_path))
 
 
 
