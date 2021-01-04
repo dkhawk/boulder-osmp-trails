@@ -7,4 +7,7 @@ interface GpsLoader {
     fun load(inputStream: InputStream): LoaderResult
 }
 
-data class LoaderResult(val segments: List<Segment>)
+data class LoaderResult(
+    val segments: List<Segment>,
+    val attributes: Map<String, Any> = emptyMap()
+)

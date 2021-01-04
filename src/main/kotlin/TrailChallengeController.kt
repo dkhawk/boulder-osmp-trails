@@ -1,7 +1,8 @@
-import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.FirebaseDatabase
+import com.google.cloud.Timestamp
+import com.google.cloud.firestore.DocumentReference
+import com.google.cloud.firestore.Firestore
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
-import com.sphericalchickens.osmptrailchallenge.loaders.LoaderResult
+import com.sphericalchickens.osmptrailchallenge.model.Activity
 import com.sphericalchickens.osmptrailchallenge.model.Coordinates
 import com.sphericalchickens.osmptrailchallenge.model.Grid
 import com.sphericalchickens.osmptrailchallenge.model.GridBuilder
@@ -11,12 +12,10 @@ import com.sphericalchickens.osmptrailchallenge.model.TrailLocations
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.concurrent.atomic.AtomicInteger
 
 class TrailChallengeController(
   private val gpsLoader: GpsLoaderFactory,
-  val database: FirebaseDatabase
+  private val database: Firestore,
 ) {
   private lateinit var grid: Grid
   private lateinit var trails: Map<String, Trail>
@@ -63,11 +62,11 @@ class TrailChallengeController(
     grid = gridBuilder.build()
   }
 
-  fun processActivity(runFile: String): List<Pair<Double, Trail>> {
-    val gpxLoader = gpsLoader.getLoaderByExtension("gpx")
-    val activity = gpxLoader.load(File(runFile).inputStream())
+  fun processActivity(activity: Activity): List<Pair<Double, Trail>> {
     val candidateSegments = candidateSegments(activity, grid, trails)
     val trailScores = scoreTrails(activity, candidateSegments).sortedByDescending { it.first }
+
+//    println(trailScores.joinToString("\n"))
 
     return trailScores.filter { (score, _) ->
       score >= 0.9
@@ -75,12 +74,11 @@ class TrailChallengeController(
   }
 
   private fun candidateSegments(
-    activity: LoaderResult,
+    activity: Activity,
     grid: Grid,
     trails: Map<String, Trail>
   ): List<Trail> {
-    return activity.segments
-      .flatMap { it.locations }
+    return activity.locations
       .asSequence()
       .map { location -> grid.locationToTileCoordinates(location) }
       .toSet()
@@ -93,16 +91,16 @@ class TrailChallengeController(
   }
 
   private fun scoreTrails(
-    activity: LoaderResult,
+    activity: Activity,
     candidateSegments: List<Trail>
   ): List<Pair<Double, Trail>> {
     // Create a grid with a thicker line, but smaller tiles
     // but add the eight neighbors as well
 
     // Calculate the bounds of activity
-    val activityLocations = activity.segments.flatMap { it.locations }
+    val activityLocations = activity.locations
     val activityBounds = LatLngBounds.createFromLocations(activityLocations)
-    val grid = GridBuilder(activityBounds, cellSizeMeters = 20)
+    val grid = GridBuilder(activityBounds, cellSizeMeters = COMPLETED_SEGMENT_CELL_SIZE_METERS)
     val activityTiles = activityLocations.map { grid.locationToTileCoordinates(it) }.toMutableSet()
     // Now add the eight neighbors for each tile
     val neighbors = activityTiles.map { it.getNeighbors() }.flatten()
@@ -154,50 +152,65 @@ class TrailChallengeController(
     return Trail.fromParams(trailId, segmentId, name, length, bounds, locations)
   }
 
-  fun updateSegmentsForAthlete(athleteId: Int, activityId: Long, activityDate: Date, completedSegments: List<Trail>) {
-    val dateString = ISO_8601_FORMAT.format(activityDate)
-    val activityLink = "https://www.strava.com/activities/${activityId}"
-
+  fun updateSegmentsForAthlete(
+    athleteId: String,
+    activity: Activity,
+    completedSegments: List<Trail>
+  ) {
     val completed = completedSegments.map { trail ->
-      trail.segmentId to CompletedSegment.fromTrail(trail, dateString, activityLink)
+      trail.segmentId to mapToCompletedSegment(activity, trail)
     }.toMap()
+//    println(completed)
+
+    val docRef: DocumentReference = database.collection("athletes").document(athleteId)  // .  .collection("completed")  //.add(completed)
+    val completedCollection = docRef.collection("completed")
+    completed.forEach {
+      completedCollection.document(it.key).set(it.value)
+    }
+    Thread.sleep(10000)
+
 //    println(athleteId)
-//    println(completed.joinToString("\n"))
+//    println(completed.entries.joinToString("\n"))
 
-    val ref: DatabaseReference = database.getReference("athletes/${athleteId}")
+//    val ref: DatabaseReference = database.getReference("athletes/${athleteId}")
+//    val completedSegmentsRef = ref.child("completed")
 
-    val completedSegmentsRef = ref.child("completed")
+//    val done = AtomicInteger(1)
+//    completedSegmentsRef.updateChildren(completed) { _, _ ->
+//      done.decrementAndGet()
+//    }
 
-    val done = AtomicInteger(1)
-    completedSegmentsRef.updateChildren(completed) { _, _ ->
-      done.decrementAndGet()
-    }
-
-    while (done.get() > 0) {
-      Thread.sleep(100)
-    }
+//    while (done.get() > 0) {
+//      Thread.sleep(100)
+//    }
   }
 
   companion object {
     const val CELL_SIZE_METERS = 200
+    const val COMPLETED_SEGMENT_CELL_SIZE_METERS = 10
     val ISO_8601_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:sss'Z'")
   }
-}
 
-data class CompletedSegment(
-  val segmentId: String,
-  val trailId: String,
-  val name: String,
-  val date: String,
-  val link: String,
-  val activityLink: String,
-) {
-  companion object {
-    fun fromTrail(trail: Trail, date: String, activityLink: String) : CompletedSegment {
-      return with(trail) {
-        val link = "https://maps.bouldercolorado.gov/osmp-trails/?find=${trailId}"
-        CompletedSegment(segmentId, trailId, name, date, link, activityLink)
-      }
-    }
+  private fun mapToCompletedSegment(
+    activity: Activity,
+    trail: Trail
+  ): MutableMap<String, Any> {
+    val data = mutableMapOf<String, Any>()
+    data["activityId"] = activity.activityId
+    data["segmentId"] = trail.segmentId
+    data["trailId"] = trail.trailId
+    data["trailName"] = trail.name
+    data["timestamp"] = Timestamp.ofTimeSecondsAndNanos(activity.activityDate.epochSecond, 0)
+    data["length"] = trail.length
+    return data
+  }
+
+  fun loadActivity(activityFile: String, athleteId: String, activityId: String, stravaId: String): Activity {
+    val gpxLoader = gpsLoader.getLoaderByExtension("gpx")
+    return Activity.fromLoaderResult(
+      gpxLoader.load(File(activityFile).inputStream()),
+      activityId,
+      athleteId,
+      stravaId)
   }
 }

@@ -8,13 +8,20 @@ import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 import java.io.InputStream
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter.ISO_INSTANT
+import java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME
 import java.util.*
 import javax.xml.parsers.DocumentBuilder
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.parsers.ParserConfigurationException
 import javax.xml.xpath.XPath
+import javax.xml.xpath.XPathConstants.NODE
 import javax.xml.xpath.XPathConstants.NODESET
 import javax.xml.xpath.XPathFactory
+import kotlin.collections.HashMap
 
 class GpxLoader : GpsLoader {
     companion object {
@@ -45,6 +52,9 @@ class GpxLoader : GpsLoader {
 
         val tracksAndRoutesList = xPath.compile("//gpx/trk | //gpx/rte | //gpx/wpt").evaluate(doc, NODESET) as NodeList
 
+        val timeNode = xPath.compile("//gpx/metadata/time").evaluate(doc, NODE) as Node
+        val instant = Instant.parse(timeNode.textContent)
+
         for (i in 0 until tracksAndRoutesList.length) {
 
             val node = tracksAndRoutesList.item(i) ?: continue
@@ -55,7 +65,10 @@ class GpxLoader : GpsLoader {
             }
         }
 
-        return LoaderResult(segments)
+        val attributes = HashMap<String, Any>()
+        attributes["timestamp"] = instant
+
+        return LoaderResult(segments, attributes)
     }
 
     private fun readTrack(trackNode: Node): Segment {
@@ -67,21 +80,19 @@ class GpxLoader : GpsLoader {
             val lat = point.attributes.getNamedItem("lat").nodeValue.toDouble()
             val lng = point.attributes.getNamedItem("lon").nodeValue.toDouble()
             var ele: Double? = null
-//             var timestamp: Calendar? = null
+            var timestamp: Calendar? = null
             for (k in 0 until point.childNodes.length) {
                 val node = point.childNodes.item(k)
                 if (node.nodeName == "ele") {
                     ele = node.textContent.toDouble()
                     break
                 }
-//                if (false && node.nodeName == "time") {
-//                    timestamp = parseTime(node.textContent)
-//                }
+                if (node.nodeName == "time") {
+                    timestamp = parseTime(node.textContent)
+                    Instant.ofEpochMilli(timestamp.timeInMillis)
+                }
             }
             val location = Location(lat, lng)
-//            if (timestamp != null) {
-//                // location.timestamp = timestamp
-//            }
             segment.locations.add(location)
         }
 
@@ -99,7 +110,7 @@ class GpxLoader : GpsLoader {
         return segment
     }
 
-    fun parseTime(timeString: String): Calendar {
+    private fun parseTime(timeString: String): Calendar {
         val cal = Calendar.getInstance()
         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         sdf.timeZone = TimeZone.getTimeZone("UTC")
