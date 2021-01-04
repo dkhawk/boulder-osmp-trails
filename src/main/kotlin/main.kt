@@ -1,16 +1,7 @@
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.firebase.FirebaseApp
-import com.google.firebase.FirebaseOptions
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.google.cloud.firestore.Firestore
+import com.google.cloud.firestore.FirestoreOptions
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
-import com.sphericalchickens.osmptrailchallenge.model.Grid
-import com.sphericalchickens.osmptrailchallenge.model.Trail
-import java.io.FileInputStream
-import java.util.concurrent.atomic.AtomicInteger
 
 
 //////////////////// Note //////////////////////////////
@@ -29,11 +20,61 @@ fun main(args: Array<String>) {
   val greenRun = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
   val tellerRun = "/Users/dkhawk/Downloads/Collecting_data.gpx"
   val boulderValleyRanchRun = "/Users/dkhawk/Downloads/Boulder Valley Ranch.gpx"
-  val runFile = greenRun
+  val sanitasFlagGreen = "/Users/dkhawk/Downloads/Sunrise_ambulation.gpx"
+  val activityFile = sanitasFlagGreen
 
+  val database = getFirestoreConnection()
+
+
+//  val docRef: DocumentReference = database.collection("users").document("alovelace")
+//  // Add document data  with id "alovelace" using a hashmap
+//  val data: MutableMap<String, Any> = HashMap()
+//  data["first"] = "Ada"
+//  data["last"] = "Lovelace"
+//  data["born"] = 1815
+//  //asynchronously write data
+//  // val result: ApiFuture<WriteResult> = docRef.set(data)
+//  val result = docRef.set(data)
+//  // ...
+//  // result.get() blocks on response
+//  println("Update time : " + result.get().updateTime)
+
+
+
+  val controller =
+    initializeController(trailTextFilename, gridTextFilename, trailDataFileName, database)
+
+  // This is my athlete id
+  val athleteId = 929553
+  val userName = "dkhawk@gmail.com"
+//  val activityId = 4530386447
+//  val activityId = 4508595960
+  val activityId = 4555758447
+  val activityDate = TrailChallengeController.ISO_8601_FORMAT.parse("2021-01-02T11:31:000Z")
+
+  processActivity(controller, activityFile)
+}
+
+private fun processActivity(
+  controller: TrailChallengeController,
+  activityFile: String
+) {
+  val stravaId = "929553"
+  val athleteId = "dkhawk@gmail.com"
+  val activityId = "4555758447"
+  val activity = controller.loadActivity(activityFile, athleteId, activityId, stravaId)
+  val completedSegments = controller.processActivity(activity).map { it.second }
+
+  controller.updateSegmentsForAthlete("dkhawk@gmail.com", activity, completedSegments)
+}
+
+private fun initializeController(
+  trailTextFilename: String,
+  gridTextFilename: String,
+  trailDataFileName: String,
+  database: Firestore
+): TrailChallengeController {
   val loader = GpsLoaderFactory()
-  val database = getDatabaseConnection()
-
   val controller = TrailChallengeController(loader, database)
   controller.loadTrailsFromFile(trailTextFilename)
   controller.loadGridFromFile(gridTextFilename)
@@ -46,99 +87,94 @@ fun main(args: Array<String>) {
     controller.loadTrailsFromKml(trailDataFileName)
     controller.createGridFromTrails()
   }
-
-  controller.processActivity(runFile)
-
-  val completedSegments = controller.processActivity(runFile).map { it.second }
-
-  // This is my athlete id
-  val athleteId = 929553
-//  val activityId = 4530386447
-//  val activityDate = TrailChallengeController.ISO_8601_FORMAT.parse("2020-12-28T14:04:000Z")
-  val activityId = 4508595960
-  val activityDate = TrailChallengeController.ISO_8601_FORMAT.parse("2020-12-23T11:34:000Z")
-  // 5:35 AM on Wednesday, December 23, 2020
-
-  controller.updateSegmentsForAthlete(athleteId, activityId, activityDate, completedSegments)
+  return controller
 }
 
 private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
 
-private fun getDatabaseConnection(): FirebaseDatabase {
-  val serviceAccount =
-    FileInputStream("/Users/dkhawk/Downloads/osmp-trail-challenge-firebase-adminsdk-te5an-d35f4253d6.json")
-
-  val options: FirebaseOptions = FirebaseOptions.Builder()
-    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-    .setDatabaseUrl("https://osmp-trail-challenge-default-rtdb.firebaseio.com/")
+private fun getFirestoreConnection(): Firestore {
+  val firestoreOptions = FirestoreOptions.getDefaultInstance().toBuilder()
+    .setProjectId("boulder-trail-challenge-300611")
+    .setCredentials(GoogleCredentials.getApplicationDefault())
     .build()
 
-  FirebaseApp.initializeApp(options)
-
-  return FirebaseDatabase.getInstance()
+  return firestoreOptions.service
 }
 
-fun readGridFromDatabase(database: FirebaseDatabase, callback: () -> Unit) {
-  val ref: DatabaseReference = database.getReference("trails")
-  val gridRef = ref.child("grid")
+//private fun getDatabaseConnection(): FirebaseDatabase {
+////  val serviceAccount = FileInputStream("/Users/dkhawk/Downloads/boulder-trail-challenge-firebase-adminsdk-kz2z3-f3441f4054.json")
+//  val serviceAccount = FileInputStream("/Users/dkhawk/Downloads/Boulder Trail Challenge-49847d8ef9a8.json")
+//
+//  val options = FirebaseOptions.Builder()
+//    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+//    .build()
+//
+//  FirebaseApp.initializeApp(options)
+//
+//  return FirebaseDatabase.getInstance()
+//}
 
-  gridRef.addValueEventListener(object : ValueEventListener {
-    override fun onDataChange(dataSnapshot: DataSnapshot) {
-      val grid = dataSnapshot.getValue(Grid::class.java)
-      println(grid)
-      callback.invoke()
-    }
-
-    override fun onCancelled(databaseError: DatabaseError) {
-      println("The read failed: " + databaseError.code)
-    }
-  })
-
-//  gridRef.addChildEventListener(object : ChildEventListener {
-//    override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-//      val grid = snapshot.getValue(Grid::class.java)
+//fun readGridFromDatabase(database: FirebaseDatabase, callback: () -> Unit) {
+//  val ref: DatabaseReference = database.getReference("trails")
+//  val gridRef = ref.child("grid")
+//
+//  gridRef.addValueEventListener(object : ValueEventListener {
+//    override fun onDataChange(dataSnapshot: DataSnapshot) {
+//      val grid = dataSnapshot.getValue(Grid::class.java)
 //      println(grid)
 //      callback.invoke()
 //    }
 //
-//    override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-//    }
-//
-//    override fun onChildRemoved(snapshot: DataSnapshot) {
-//    }
-//
-//    override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-//    }
-//
-//    override fun onCancelled(error: DatabaseError?) {
-//      println("The read failed: " + error?.code)
+//    override fun onCancelled(databaseError: DatabaseError) {
+//      println("The read failed: " + databaseError.code)
 //    }
 //  })
-}
-
-fun writeTrailsToDatabase(database: FirebaseDatabase, trails: Map<String, Trail>, grid: Grid) {
-  val ref: DatabaseReference = database.getReference("trails")
-
-  val done = AtomicInteger(2)
-
-  val metadataRef = ref.child("metadata")
-  val metadata = trails.map { it.key to it.value.metadata }.subList(0, 1)
-  metadataRef.setValue(metadata) { _, _ ->
-    done.decrementAndGet()
-  }
-
-  val locationsRef = ref.child("locations")
-  val locations = trails.map { it.key to it.value.locations }.subList(0, 1)
-  locationsRef.setValue(locations) { _, _ ->
-    done.decrementAndGet()
-  }
-
-//  val gridRef = ref.child("grid")
-//  gridRef.setValue(grid) { _, _ ->
+//
+////  gridRef.addChildEventListener(object : ChildEventListener {
+////    override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+////      val grid = snapshot.getValue(Grid::class.java)
+////      println(grid)
+////      callback.invoke()
+////    }
+////
+////    override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+////    }
+////
+////    override fun onChildRemoved(snapshot: DataSnapshot) {
+////    }
+////
+////    override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
+////    }
+////
+////    override fun onCancelled(error: DatabaseError?) {
+////      println("The read failed: " + error?.code)
+////    }
+////  })
+//}
+//
+//fun writeTrailsToDatabase(database: FirebaseDatabase, trails: Map<String, Trail>, grid: Grid) {
+//  val ref: DatabaseReference = database.getReference("trails")
+//
+//  val done = AtomicInteger(2)
+//
+//  val metadataRef = ref.child("metadata")
+//  val metadata = trails.map { it.key to it.value.metadata }.subList(0, 1)
+//  metadataRef.setValue(metadata) { _, _ ->
 //    done.decrementAndGet()
 //  }
-
-  while (done.get() > 0) {
-    Thread.sleep(100)
-  }
-}
+//
+//  val locationsRef = ref.child("locations")
+//  val locations = trails.map { it.key to it.value.locations }.subList(0, 1)
+//  locationsRef.setValue(locations) { _, _ ->
+//    done.decrementAndGet()
+//  }
+//
+////  val gridRef = ref.child("grid")
+////  gridRef.setValue(grid) { _, _ ->
+////    done.decrementAndGet()
+////  }
+//
+//  while (done.get() > 0) {
+//    Thread.sleep(100)
+//  }
+//}
