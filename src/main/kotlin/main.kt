@@ -2,6 +2,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.FirestoreOptions
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
+import java.io.FileInputStream
 
 
 //////////////////// Note //////////////////////////////
@@ -38,8 +39,8 @@ fun main(args: Array<String>) {
 //  // ...
 //  // result.get() blocks on response
 //  println("Update time : " + result.get().updateTime)
-
-
+//
+//  return
 
   val controller =
     initializeController(trailTextFilename, gridTextFilename, trailDataFileName, database)
@@ -93,8 +94,10 @@ private fun initializeController(
 private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
 
 private fun getFirestoreConnection(): Firestore {
+  val serviceAccount = FileInputStream("/Users/dkhawk/Downloads/boulder-trail-challenge-firebase-adminsdk-kz2z3-7547d3c525.json")
+
   val firestoreOptions = FirestoreOptions.getDefaultInstance().toBuilder()
-    .setProjectId("boulder-trail-challenge-300611")
+    .setProjectId("boulder-trail-challenge")
     .setCredentials(GoogleCredentials.getApplicationDefault())
     .build()
 
