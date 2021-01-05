@@ -11,7 +11,6 @@ import com.sphericalchickens.osmptrailchallenge.model.Trail
 import com.sphericalchickens.osmptrailchallenge.model.TrailLocations
 import java.io.File
 import java.io.FileWriter
-import java.text.SimpleDateFormat
 
 class TrailChallengeController(
   private val gpsLoader: GpsLoaderFactory,
@@ -66,10 +65,8 @@ class TrailChallengeController(
     val candidateSegments = candidateSegments(activity, grid, trails)
     val trailScores = scoreTrails(activity, candidateSegments).sortedByDescending { it.first }
 
-//    println(trailScores.joinToString("\n"))
-
     return trailScores.filter { (score, _) ->
-      score >= 0.9
+      score >= MATCH_THRESHOLD
     }
   }
 
@@ -160,35 +157,19 @@ class TrailChallengeController(
     val completed = completedSegments.map { trail ->
       trail.segmentId to mapToCompletedSegment(activity, trail)
     }.toMap()
-//    println(completed)
 
-    val docRef: DocumentReference = database.collection("athletes").document(athleteId)  // .  .collection("completed")  //.add(completed)
+    val docRef: DocumentReference = database.collection("athletes").document(athleteId)
     val completedCollection = docRef.collection("completed")
-    completed.forEach {
+    val results = completed.map {
       completedCollection.document(it.key).set(it.value)
     }
-    Thread.sleep(10000)
-
-//    println(athleteId)
-//    println(completed.entries.joinToString("\n"))
-
-//    val ref: DatabaseReference = database.getReference("athletes/${athleteId}")
-//    val completedSegmentsRef = ref.child("completed")
-
-//    val done = AtomicInteger(1)
-//    completedSegmentsRef.updateChildren(completed) { _, _ ->
-//      done.decrementAndGet()
-//    }
-
-//    while (done.get() > 0) {
-//      Thread.sleep(100)
-//    }
+    results.forEach { it.get() }
   }
 
   companion object {
     const val CELL_SIZE_METERS = 200
     const val COMPLETED_SEGMENT_CELL_SIZE_METERS = 10
-    val ISO_8601_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:sss'Z'")
+    const val MATCH_THRESHOLD = 0.9
   }
 
   private fun mapToCompletedSegment(

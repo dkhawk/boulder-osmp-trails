@@ -2,7 +2,8 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.FirestoreOptions
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
-import java.io.FileInputStream
+import java.nio.file.Path
+import java.nio.file.Paths
 
 
 //////////////////// Note //////////////////////////////
@@ -13,60 +14,55 @@ import java.io.FileInputStream
 //////////////////// Note //////////////////////////////
 
 fun main(args: Array<String>) {
-  val trailDataFileName = "/Users/dkhawk/Downloads/OSMP_Trails.kml"
+  // Strava athleteId.  Set this to your own Strava ID (or test account).
+  val stravaAthleteId = "929553"
+  // Username of the user being processed.  Set this to your own account id (or test account).
+  val athleteId = "dkhawk@gmail.com"
 
-  val trailTextFilename = "/Users/dkhawk/Downloads/OSMP-trails.txt"
-  val gridTextFilename = "/Users/dkhawk/Downloads/grid.txt"
+  // Example activities to load.
+  // The gpx file is from Strava and the stravaId here is the strava activity id.
+  // It is available in the activity url.
+  val southBoulderCreekLoop = TestActivity(
+    stravaActivityId = "4539099599",
+    filename = "/Users/dkhawk/Downloads/Twilight_Amblers.gpx"
+  )
+  val wonderLandToEagle = TestActivity(
+    stravaActivityId = "4566776467",
+    filename = "/Users/dkhawk/Downloads/Wonderland_to_Eagle.gpx"
+  )
+  val activity = wonderLandToEagle
 
-  val greenRun = "/Users/dkhawk/Downloads/GreenMountainCrownRock.gpx"
-  val tellerRun = "/Users/dkhawk/Downloads/Collecting_data.gpx"
-  val boulderValleyRanchRun = "/Users/dkhawk/Downloads/Boulder Valley Ranch.gpx"
-  val sanitasFlagGreen = "/Users/dkhawk/Downloads/Sunrise_ambulation.gpx"
-  val activityFile = sanitasFlagGreen
+  // Everything below this should just work.  But it is possible the current directory isn't as
+  // expected.
+  // =====================================
+
+  val dataDirectory: Path = Paths.get(System.getProperty("user.dir"), "src/main/resources")
+  val trailDataFileName = Paths.get(dataDirectory.toString(), "OSMP_Trails.kml").toString()
+  val trailTextFilename = Paths.get(dataDirectory.toString(),"OSMP-trails.txt").toString()
+  val gridTextFilename = Paths.get(dataDirectory.toString(),"grid.txt").toString()
 
   val database = getFirestoreConnection()
-
-
-//  val docRef: DocumentReference = database.collection("users").document("alovelace")
-//  // Add document data  with id "alovelace" using a hashmap
-//  val data: MutableMap<String, Any> = HashMap()
-//  data["first"] = "Ada"
-//  data["last"] = "Lovelace"
-//  data["born"] = 1815
-//  //asynchronously write data
-//  // val result: ApiFuture<WriteResult> = docRef.set(data)
-//  val result = docRef.set(data)
-//  // ...
-//  // result.get() blocks on response
-//  println("Update time : " + result.get().updateTime)
-//
-//  return
 
   val controller =
     initializeController(trailTextFilename, gridTextFilename, trailDataFileName, database)
 
-  // This is my athlete id
-  val athleteId = 929553
-  val userName = "dkhawk@gmail.com"
-//  val activityId = 4530386447
-//  val activityId = 4508595960
-  val activityId = 4555758447
-  val activityDate = TrailChallengeController.ISO_8601_FORMAT.parse("2021-01-02T11:31:000Z")
-
-  processActivity(controller, activityFile)
+  processActivity(controller, activity.filename, activity.stravaActivityId,
+                  athleteId = athleteId, stravaId = stravaAthleteId)
 }
+
+data class TestActivity(val stravaActivityId: String, val filename: String)
 
 private fun processActivity(
   controller: TrailChallengeController,
-  activityFile: String
+  activityFile: String,
+  activityId: String,
+  athleteId: String,
+  stravaId: String,
 ) {
-  val stravaId = "929553"
-  val athleteId = "dkhawk@gmail.com"
-  val activityId = "4555758447"
   val activity = controller.loadActivity(activityFile, athleteId, activityId, stravaId)
   val completedSegments = controller.processActivity(activity).map { it.second }
 
-  controller.updateSegmentsForAthlete("dkhawk@gmail.com", activity, completedSegments)
+  controller.updateSegmentsForAthlete(athleteId, activity, completedSegments)
 }
 
 private fun initializeController(
@@ -94,8 +90,6 @@ private fun initializeController(
 private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
 
 private fun getFirestoreConnection(): Firestore {
-  val serviceAccount = FileInputStream("/Users/dkhawk/Downloads/boulder-trail-challenge-firebase-adminsdk-kz2z3-7547d3c525.json")
-
   val firestoreOptions = FirestoreOptions.getDefaultInstance().toBuilder()
     .setProjectId("boulder-trail-challenge")
     .setCredentials(GoogleCredentials.getApplicationDefault())
@@ -104,80 +98,19 @@ private fun getFirestoreConnection(): Firestore {
   return firestoreOptions.service
 }
 
-//private fun getDatabaseConnection(): FirebaseDatabase {
-////  val serviceAccount = FileInputStream("/Users/dkhawk/Downloads/boulder-trail-challenge-firebase-adminsdk-kz2z3-f3441f4054.json")
-//  val serviceAccount = FileInputStream("/Users/dkhawk/Downloads/Boulder Trail Challenge-49847d8ef9a8.json")
+private fun testDatabaseWrite() {
+//  val docRef: DocumentReference = database.collection("users").document("alovelace")
+//  // Add document data  with id "alovelace" using a hashmap
+//  val data: MutableMap<String, Any> = HashMap()
+//  data["first"] = "Ada"
+//  data["last"] = "Lovelace"
+//  data["born"] = 1815
+//  //asynchronously write data
+//  // val result: ApiFuture<WriteResult> = docRef.set(data)
+//  val result = docRef.set(data)
+//  // ...
+//  // result.get() blocks on response
+//  println("Update time : " + result.get().updateTime)
 //
-//  val options = FirebaseOptions.Builder()
-//    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-//    .build()
-//
-//  FirebaseApp.initializeApp(options)
-//
-//  return FirebaseDatabase.getInstance()
-//}
-
-//fun readGridFromDatabase(database: FirebaseDatabase, callback: () -> Unit) {
-//  val ref: DatabaseReference = database.getReference("trails")
-//  val gridRef = ref.child("grid")
-//
-//  gridRef.addValueEventListener(object : ValueEventListener {
-//    override fun onDataChange(dataSnapshot: DataSnapshot) {
-//      val grid = dataSnapshot.getValue(Grid::class.java)
-//      println(grid)
-//      callback.invoke()
-//    }
-//
-//    override fun onCancelled(databaseError: DatabaseError) {
-//      println("The read failed: " + databaseError.code)
-//    }
-//  })
-//
-////  gridRef.addChildEventListener(object : ChildEventListener {
-////    override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-////      val grid = snapshot.getValue(Grid::class.java)
-////      println(grid)
-////      callback.invoke()
-////    }
-////
-////    override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-////    }
-////
-////    override fun onChildRemoved(snapshot: DataSnapshot) {
-////    }
-////
-////    override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-////    }
-////
-////    override fun onCancelled(error: DatabaseError?) {
-////      println("The read failed: " + error?.code)
-////    }
-////  })
-//}
-//
-//fun writeTrailsToDatabase(database: FirebaseDatabase, trails: Map<String, Trail>, grid: Grid) {
-//  val ref: DatabaseReference = database.getReference("trails")
-//
-//  val done = AtomicInteger(2)
-//
-//  val metadataRef = ref.child("metadata")
-//  val metadata = trails.map { it.key to it.value.metadata }.subList(0, 1)
-//  metadataRef.setValue(metadata) { _, _ ->
-//    done.decrementAndGet()
-//  }
-//
-//  val locationsRef = ref.child("locations")
-//  val locations = trails.map { it.key to it.value.locations }.subList(0, 1)
-//  locationsRef.setValue(locations) { _, _ ->
-//    done.decrementAndGet()
-//  }
-//
-////  val gridRef = ref.child("grid")
-////  gridRef.setValue(grid) { _, _ ->
-////    done.decrementAndGet()
-////  }
-//
-//  while (done.get() > 0) {
-//    Thread.sleep(100)
-//  }
-//}
+//  return
+}
