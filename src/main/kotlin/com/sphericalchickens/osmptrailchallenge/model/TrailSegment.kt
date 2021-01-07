@@ -1,6 +1,6 @@
 package com.sphericalchickens.osmptrailchallenge.model
 
-data class Trail(val metadata: TrailMetadata, val trailLocations: TrailLocations) {
+data class TrailSegment(val metadata: TrailMetadata, val trailLocations: TrailLocations) {
   val segmentId: String
     get() {
       return metadata.segmentId
@@ -36,8 +36,8 @@ data class Trail(val metadata: TrailMetadata, val trailLocations: TrailLocations
   }
 
   companion object {
-    fun from(segment: Segment): Trail {
-      return Trail(
+    fun from(segment: Segment): TrailSegment {
+      return TrailSegment(
         TrailMetadata(
           segment.trailId,
           segment.segmentId,
@@ -56,8 +56,8 @@ data class Trail(val metadata: TrailMetadata, val trailLocations: TrailLocations
       length: Int,
       bounds: LatLngBounds,
       locations: List<Location>
-    ): Trail {
-      return Trail(
+    ): TrailSegment {
+      return TrailSegment(
         TrailMetadata(
           trailId,
           segmentId,
