@@ -1,7 +1,11 @@
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.Timestamp
+import com.google.cloud.firestore.DocumentReference
 import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.FirestoreOptions
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
+import com.sphericalchickens.osmptrailchallenge.model.CompletedSegment
+import com.sphericalchickens.osmptrailchallenge.model.TrailSegment
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -30,7 +34,11 @@ fun main(args: Array<String>) {
     stravaActivityId = "4566776467",
     filename = "/Users/dkhawk/Downloads/Wonderland_to_Eagle.gpx"
   )
-  val activity = wonderLandToEagle
+  val southMesaTowhee = TestActivity(
+    stravaActivityId = "4576598089",
+    filename = "/Users/dkhawk/Downloads/TMA_South_Mesa_Homestead_Towhee.gpx"
+  )
+  val activities = listOf(southBoulderCreekLoop, wonderLandToEagle, southMesaTowhee)
 
   // Everything below this should just work.  But it is possible the current directory isn't as
   // expected.
@@ -46,8 +54,35 @@ fun main(args: Array<String>) {
   val controller =
     initializeController(trailTextFilename, gridTextFilename, trailDataFileName, database)
 
-  processActivity(controller, activity.filename, activity.stravaActivityId,
-                  athleteId = athleteId, stravaId = stravaAthleteId)
+//  activities.forEach { activity ->
+//    processActivity(controller, activity.filename, activity.stravaActivityId,
+//                    athleteId = athleteId, stravaId = stravaAthleteId)
+//  }
+
+  controller.calculateTrailStats()
+
+  // Get all of the completed segments so far
+  val completedSegments = getCompletedSegmentsFor(database, athleteId)
+
+  controller.calculateCompletedStats(completedSegments)
+}
+
+fun getCompletedSegmentsFor(database: Firestore, athleteId: String): List<CompletedSegment> {
+  val docRef: DocumentReference = database.collection("athletes").document(athleteId)
+  val completedCollection = docRef.collection("completed")
+
+  val things = completedCollection.get().get().map {
+    val activityId = it.getString("activityId")
+    val segmentId = it.getString("segmentId")
+    val trailId = it.getString("trailId")
+    val name = it.getString("trailName")
+    val timestamp = it.getTimestamp("timestamp")
+    val length = it.getLong("length")!!.toInt()
+
+    // println("$name($trailId), segmentId($segmentId) $length")
+    CompletedSegment(segmentId!!, trailId!!, name!!, length, activityId!!, timestamp!!)
+  }
+  return things
 }
 
 data class TestActivity(val stravaActivityId: String, val filename: String)
