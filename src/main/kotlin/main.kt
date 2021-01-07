@@ -1,11 +1,9 @@
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.cloud.Timestamp
 import com.google.cloud.firestore.DocumentReference
 import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.FirestoreOptions
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
 import com.sphericalchickens.osmptrailchallenge.model.CompletedSegment
-import com.sphericalchickens.osmptrailchallenge.model.TrailSegment
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -59,12 +57,12 @@ fun main(args: Array<String>) {
 //                    athleteId = athleteId, stravaId = stravaAthleteId)
 //  }
 
-  controller.calculateTrailStats()
-
   // Get all of the completed segments so far
   val completedSegments = getCompletedSegmentsFor(database, athleteId)
 
-  controller.calculateCompletedStats(completedSegments)
+  val completedTrailStats = controller.calculateCompletedStats(completedSegments)
+
+  controller.writeCompletedTrailStats(completedTrailStats, athleteId = athleteId)
 }
 
 fun getCompletedSegmentsFor(database: Firestore, athleteId: String): List<CompletedSegment> {
@@ -119,6 +117,9 @@ private fun initializeController(
     controller.loadTrailsFromKml(trailDataFileName)
     controller.createGridFromTrails()
   }
+
+  controller.calculateTrailStats()
+
   return controller
 }
 

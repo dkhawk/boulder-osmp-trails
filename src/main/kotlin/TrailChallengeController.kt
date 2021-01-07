@@ -10,6 +10,8 @@ import com.sphericalchickens.osmptrailchallenge.model.GridBuilder
 import com.sphericalchickens.osmptrailchallenge.model.LatLngBounds
 import com.sphericalchickens.osmptrailchallenge.model.TrailSegment
 import com.sphericalchickens.osmptrailchallenge.model.TrailLocations
+import com.sphericalchickens.osmptrailchallenge.model.TrailStats
+import com.sphericalchickens.osmptrailchallenge.model.TrailsSummary
 import java.io.File
 import java.io.FileWriter
 
@@ -208,30 +210,50 @@ class TrailChallengeController(
     }
   }
 
-  fun calculateCompletedStats(completedSegments: List<CompletedSegment>) {
-    val trailProgress = mutableMapOf<String, MutableSet<CompletedSegment>>()
-    completedSegments.forEach { segment ->
-      val cs = trailProgress.getOrElse(segment.trailId) {
-        val completed = mutableSetOf<CompletedSegment>()
-        trailProgress[segment.trailId] = completed
-        completed
-      }
-      cs.add(segment)
-    }
+  fun calculateCompletedStats(completedSegments: List<CompletedSegment>): TrailsSummary {
+    val completedIds = completedSegments.map { it.segmentId }.toSet()
 
-    trailProgress.entries.forEach { (trailId, completed) ->
-      val compLen = completed.sumBy { it.length }
-      val trailLen = trails[trailId]!!.length
-      val percent = (compLen.toDouble() / trailLen) * 100
-      println("${trails[trailId]!!.name} ${percent.format(2)}% done")
-    }
+    var totalDistance = 0
+    var completedDistance = 0
 
-    println("\nTrails with no progress so far:")
+    val trailStats = trails.map { (trailId, trail) ->
+      val data = trail.segments.partition { completedIds.contains(it) }
+      val distDone = data.first.sumBy { segments[it]?.length ?: 0 }
+      val percentDone = distDone.toDouble() / trail.length
 
-    val noProgress = trails.keys.toSet().minus(trailProgress.keys.toSet())
-    noProgress.forEach {
-      println(trails[it]!!.name)
+      totalDistance += trail.length
+      completedDistance += distDone
+
+      trailId to TrailStats(
+        name = trail.name,
+        length = trail.length,
+        completedDistance = distDone,
+        percentDone = percentDone,
+        completed = data.first,
+        remaining = data.second
+      )
+    }.toMap()
+
+    val totalPercentDone = completedDistance.toDouble() / totalDistance
+
+    return TrailsSummary(trailStats = trailStats,
+                         totalDistance = totalDistance,
+                         completedDistance = completedDistance,
+                         percentDone = totalPercentDone
+    )
+  }
+
+  fun writeCompletedTrailStats(completedTrailStats: TrailsSummary, athleteId: String) {
+    val docRef: DocumentReference = database.collection("athletes").document(athleteId)
+    val stats : Map<String, Any> = completedTrailStats.getStats()
+    val r = docRef.set(mapOf("overallStats" to stats))
+
+    val trailsCollection = docRef.collection("trailStats")
+    val results = completedTrailStats.trailStats.map {
+      trailsCollection.document(it.key).set(it.value)
     }
+    results.forEach { it.get() }
+    r.get()
   }
 }
 
