@@ -4,8 +4,10 @@ import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.FirestoreOptions
 import com.sphericalchickens.osmptrailchallenge.loaders.GpsLoaderFactory
 import com.sphericalchickens.osmptrailchallenge.model.CompletedSegment
+import com.sphericalchickens.osmptrailchallenge.model.Location
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.math.roundToInt
 
 
 //////////////////// Note //////////////////////////////
@@ -16,6 +18,21 @@ import java.nio.file.Paths
 //////////////////// Note //////////////////////////////
 
 fun main(args: Array<String>) {
+////  println(encodeValue(-179.9832104))
+////  println(encodeValue(38.5))
+////  println(encodeValue(-120.2))
+//  val result = encodePolyline(
+//    listOf(
+//      Location(38.5, -120.2),
+//      Location(40.7, -120.95),
+//      Location(43.252, -126.453)
+//    )
+//  )
+//  println(result)
+//  println(result == "_p~iF~ps|U_ulLnnqC_mqNvxq`@")
+//  return
+
+
   // Strava athleteId.  Set this to your own Strava ID (or test account).
   val stravaAthleteId = "929553"
   // Username of the user being processed.  Set this to your own account id (or test account).
@@ -52,10 +69,22 @@ fun main(args: Array<String>) {
   val controller =
     initializeController(trailTextFilename, gridTextFilename, trailDataFileName, database)
 
+  val activity = controller.loadActivity(
+    wonderLandToEagle.filename,
+    athleteId,
+    wonderLandToEagle.stravaActivityId,
+    stravaAthleteId)
+
+  val encodedActivity = encodePolyline(activity.locations)
+  println(encodedActivity.length)
+  println(encodedActivity)
+
+  return
 //  activities.forEach { activity ->
 //    processActivity(controller, activity.filename, activity.stravaActivityId,
 //                    athleteId = athleteId, stravaId = stravaAthleteId)
 //  }
+
 
   // Get all of the completed segments so far
   val completedSegments = getCompletedSegmentsFor(database, athleteId)
@@ -63,6 +92,68 @@ fun main(args: Array<String>) {
   val completedTrailStats = controller.calculateCompletedStats(completedSegments)
 
   controller.writeCompletedTrailStats(completedTrailStats, athleteId = athleteId)
+}
+
+fun encodePolyline(polyline: List<Location>): String {
+  /*
+    https://developers.google.com/maps/documentation/utilities/polylinealgorithm#example
+
+    Example
+    Points: (38.5, -120.2), (40.7, -120.95), (43.252, -126.453)
+
+    Latitude	Longitude	Latitude in E5	Longitude in E5	Change In Latitude	Change In Longitude	Encoded Latitude	Encoded Longitude	Encoded Point
+    38.5	-120.2	3850000	-12020000	+3850000	-12020000	_p~iF	~ps|U	_p~iF~ps|U
+    40.7	-120.95	4070000	-12095000	+220000	-75000	_ulL	nnqC	_ulLnnqC
+    43.252	-126.453	4325200	-12645300	+255200	-550300	_mqN	vxq`@	_mqNvxq`@
+  */
+
+  var lastLat = 0.0
+  var lastLng = 0.0
+
+  return polyline.map { location ->
+    val dLat = location.lat - lastLat
+    val dLng = location.lng - lastLng
+
+    lastLat = location.lat
+    lastLng = location.lng
+
+    val result = Pair(encodeValue(dLat), encodeValue(dLng))
+    result
+  }.map { it.first + it.second }.joinToString("")
+}
+
+fun encodeValue(value: Double): String {
+  val valueScaled = (value * 1e5).roundToInt()
+  val isNegative = valueScaled < 0
+  val leftShifted = valueScaled shl 1
+  val inverted = if (isNegative) {
+    leftShifted.inv()
+  } else {
+    leftShifted
+  }
+  val fiveBitChunksReversed = inverted.toBinaryArray().toList().reversed().windowed(5, 5)
+    .map { it.reversed().toCharArray() }.toMutableList()
+
+  while (fiveBitChunksReversed.size > 1 && fiveBitChunksReversed.last().joinToString("").toInt(2) == 0) {
+    fiveBitChunksReversed.removeAt(fiveBitChunksReversed.lastIndex)
+  }
+
+  val continuationEncoding = fiveBitChunksReversed.map { chunk ->
+    (listOf('1') + chunk.toList()).toCharArray()
+  }.toMutableList()
+
+  continuationEncoding.last()[0] = '0'
+  return continuationEncoding.map { it.joinToString("").toInt(2) + 63 }.map { it.toChar() }.joinToString("")
+}
+
+private fun Int.toBinaryArray(): CharArray {
+  var index = 31
+  val result = CharArray(32)
+  while (index >= 0) {
+    result[31 - index] = if (this and (1 shl index) != 0) '1' else '0'
+    index -= 1
+  }
+  return result
 }
 
 fun getCompletedSegmentsFor(database: Firestore, athleteId: String): List<CompletedSegment> {
