@@ -19,6 +19,12 @@ class TrailChallengeController(
   private val gpsLoader: GpsLoaderFactory,
   private val database: Firestore,
 ) {
+  companion object {
+    const val CELL_SIZE_METERS = 200
+    const val COMPLETED_SEGMENT_CELL_SIZE_METERS = 15
+    const val MATCH_THRESHOLD = 0.9
+  }
+
   private lateinit var grid: Grid
   private lateinit var segments: Map<String, TrailSegment>
   private val trails = mutableMapOf<String, Trail>()
@@ -168,12 +174,6 @@ class TrailChallengeController(
       completedCollection.document(it.key).set(it.value)
     }
     results.forEach { it.get() }
-  }
-
-  companion object {
-    const val CELL_SIZE_METERS = 200
-    const val COMPLETED_SEGMENT_CELL_SIZE_METERS = 10
-    const val MATCH_THRESHOLD = 0.9
   }
 
   private fun mapToCompletedSegment(
