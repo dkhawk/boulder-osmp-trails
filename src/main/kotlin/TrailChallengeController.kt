@@ -8,12 +8,14 @@ import com.sphericalchickens.osmptrailchallenge.model.Coordinates
 import com.sphericalchickens.osmptrailchallenge.model.Grid
 import com.sphericalchickens.osmptrailchallenge.model.GridBuilder
 import com.sphericalchickens.osmptrailchallenge.model.LatLngBounds
+import com.sphericalchickens.osmptrailchallenge.model.Location
 import com.sphericalchickens.osmptrailchallenge.model.TrailSegment
 import com.sphericalchickens.osmptrailchallenge.model.TrailLocations
 import com.sphericalchickens.osmptrailchallenge.model.TrailStats
 import com.sphericalchickens.osmptrailchallenge.model.TrailsSummary
 import java.io.File
 import java.io.FileWriter
+import kotlin.math.roundToInt
 
 class TrailChallengeController(
   private val gpsLoader: GpsLoaderFactory,
@@ -26,7 +28,7 @@ class TrailChallengeController(
   }
 
   private lateinit var grid: Grid
-  private lateinit var segments: Map<String, TrailSegment>
+  lateinit var segments: Map<String, TrailSegment>
   private val trails = mutableMapOf<String, Trail>()
 
   fun loadTrailsFromFile(filename: String) {
@@ -255,6 +257,36 @@ class TrailChallengeController(
     results.forEach { it.get() }
     r.get()
   }
+
+  // Writes all of the trail segments to the database.  Use sparingly.
+  fun writeSegmentsToDatabase() {
+    val segmentsRef = database.collection("segments")
+    segments.map { (segmentId, segment) ->
+      segmentsRef.document(segment.segmentId).set(EncodedSegment.fromTrailSegment(segment))
+    }.forEach { it.get() }
+  }
+}
+
+data class EncodedSegment(
+  val trailId: String,
+  val segmentId: String,
+  val name: String,
+  val length: Int,
+  val bounds: LatLngBounds,
+  val encodedLocations: String
+) {
+  companion object {
+    fun fromTrailSegment(trailSegment: TrailSegment): EncodedSegment {
+      return EncodedSegment(
+        trailSegment.trailId,
+        trailSegment.segmentId,
+        trailSegment.name,
+        trailSegment.length,
+        trailSegment.bounds,
+        encodePolyline(trailSegment.locations)
+      )
+    }
+  }
 }
 
 class Trail(val name: String, val trailId: String) {
@@ -273,3 +305,65 @@ class Trail(val name: String, val trailId: String) {
 }
 
 private fun Double.format(digits: Int): String = "%.${digits}f".format(this)
+
+fun encodePolyline(polyline: List<Location>): String {
+  /*
+    https://developers.google.com/maps/documentation/utilities/polylinealgorithm#example
+
+    Example
+    Points: (38.5, -120.2), (40.7, -120.95), (43.252, -126.453)
+
+    Latitude	Longitude	Latitude in E5	Longitude in E5	Change In Latitude	Change In Longitude	Encoded Latitude	Encoded Longitude	Encoded Point
+    38.5	-120.2	3850000	-12020000	+3850000	-12020000	_p~iF	~ps|U	_p~iF~ps|U
+    40.7	-120.95	4070000	-12095000	+220000	-75000	_ulL	nnqC	_ulLnnqC
+    43.252	-126.453	4325200	-12645300	+255200	-550300	_mqN	vxq`@	_mqNvxq`@
+  */
+
+  var lastLat = 0.0
+  var lastLng = 0.0
+
+  return polyline.map { location ->
+    val dLat = location.lat - lastLat
+    val dLng = location.lng - lastLng
+
+    lastLat = location.lat
+    lastLng = location.lng
+
+    val result = Pair(encodeValue(dLat), encodeValue(dLng))
+    result
+  }.map { it.first + it.second }.joinToString("")
+}
+
+fun encodeValue(value: Double): String {
+  val valueScaled = (value * 1e5).roundToInt()
+  val isNegative = valueScaled < 0
+  val leftShifted = valueScaled shl 1
+  val inverted = if (isNegative) {
+    leftShifted.inv()
+  } else {
+    leftShifted
+  }
+  val fiveBitChunksReversed = inverted.toBinaryArray().toList().reversed().windowed(5, 5)
+    .map { it.reversed().toCharArray() }.toMutableList()
+
+  while (fiveBitChunksReversed.size > 1 && fiveBitChunksReversed.last().joinToString("").toInt(2) == 0) {
+    fiveBitChunksReversed.removeAt(fiveBitChunksReversed.lastIndex)
+  }
+
+  val continuationEncoding = fiveBitChunksReversed.map { chunk ->
+    (listOf('1') + chunk.toList()).toCharArray()
+  }.toMutableList()
+
+  continuationEncoding.last()[0] = '0'
+  return continuationEncoding.map { it.joinToString("").toInt(2) + 63 }.map { it.toChar() }.joinToString("")
+}
+
+private fun Int.toBinaryArray(): CharArray {
+  var index = 31
+  val result = CharArray(32)
+  while (index >= 0) {
+    result[31 - index] = if (this and (1 shl index) != 0) '1' else '0'
+    index -= 1
+  }
+  return result
+}
