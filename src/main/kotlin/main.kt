@@ -53,7 +53,11 @@ fun main(args: Array<String>) {
     stravaActivityId = "4576598089",
     filename = "/Users/dkhawk/Downloads/TMA_South_Mesa_Homestead_Towhee.gpx"
   )
-  val activities = listOf(southBoulderCreekLoop, wonderLandToEagle, southMesaTowhee)
+  val sanitasFlagGreen = TestActivity(
+    stravaActivityId = "4555758447",
+    filename = "/Users/dkhawk/Downloads/Sunrise_ambulation.gpx"
+  )
+  val activities = listOf(southBoulderCreekLoop, wonderLandToEagle, southMesaTowhee, sanitasFlagGreen)
 
   // Everything below this should just work.  But it is possible the current directory isn't as
   // expected.
@@ -69,15 +73,38 @@ fun main(args: Array<String>) {
   val controller =
     initializeController(trailTextFilename, gridTextFilename, trailDataFileName, database)
 
-  val activity = controller.loadActivity(
-    wonderLandToEagle.filename,
-    athleteId,
-    wonderLandToEagle.stravaActivityId,
-    stravaAthleteId)
+//  controller.writeSegmentsToDatabase()
 
-  val encodedActivity = encodePolyline(activity.locations)
-  println(encodedActivity.length)
-  println(encodedActivity)
+//  val activity = controller.loadActivity(
+//    sanitasFlagGreen.filename,
+//    athleteId,
+//    sanitasFlagGreen.stravaActivityId,
+//    stravaAthleteId)
+//
+//  val mostPoints = controller.segments.maxByOrNull { segment -> segment.value.locations.size }
+//  println(mostPoints!!.value.locations.size)
+//  val locations = mostPoints.value.locations.filterIndexed { index, location ->  index % 4 == 0 }
+//  val encodedActivity = encodePolyline(locations)
+//  println(encodedActivity.length)
+//  println(encodedActivity)
+//
+//  println()
+//  println()
+//  println((0 until locations.size).map {
+//    when(it % 20) {
+//      0 -> 'B'
+//      10 -> 'A'
+//      else -> '@'
+//    }
+//  }.joinToString(""))
+
+//  val encodedActivity = encodePolyline(activity.locations)
+//  println(encodedActivity.length)
+//  println(encodedActivity)
+
+//  val encodedActivity = encodePolyline(activity.locations.filterIndexed { index, _ -> index % 10 == 0 })
+//  println(encodedActivity.length)
+//  println(encodedActivity)
 
   return
 //  activities.forEach { activity ->
@@ -94,67 +121,6 @@ fun main(args: Array<String>) {
   controller.writeCompletedTrailStats(completedTrailStats, athleteId = athleteId)
 }
 
-fun encodePolyline(polyline: List<Location>): String {
-  /*
-    https://developers.google.com/maps/documentation/utilities/polylinealgorithm#example
-
-    Example
-    Points: (38.5, -120.2), (40.7, -120.95), (43.252, -126.453)
-
-    Latitude	Longitude	Latitude in E5	Longitude in E5	Change In Latitude	Change In Longitude	Encoded Latitude	Encoded Longitude	Encoded Point
-    38.5	-120.2	3850000	-12020000	+3850000	-12020000	_p~iF	~ps|U	_p~iF~ps|U
-    40.7	-120.95	4070000	-12095000	+220000	-75000	_ulL	nnqC	_ulLnnqC
-    43.252	-126.453	4325200	-12645300	+255200	-550300	_mqN	vxq`@	_mqNvxq`@
-  */
-
-  var lastLat = 0.0
-  var lastLng = 0.0
-
-  return polyline.map { location ->
-    val dLat = location.lat - lastLat
-    val dLng = location.lng - lastLng
-
-    lastLat = location.lat
-    lastLng = location.lng
-
-    val result = Pair(encodeValue(dLat), encodeValue(dLng))
-    result
-  }.map { it.first + it.second }.joinToString("")
-}
-
-fun encodeValue(value: Double): String {
-  val valueScaled = (value * 1e5).roundToInt()
-  val isNegative = valueScaled < 0
-  val leftShifted = valueScaled shl 1
-  val inverted = if (isNegative) {
-    leftShifted.inv()
-  } else {
-    leftShifted
-  }
-  val fiveBitChunksReversed = inverted.toBinaryArray().toList().reversed().windowed(5, 5)
-    .map { it.reversed().toCharArray() }.toMutableList()
-
-  while (fiveBitChunksReversed.size > 1 && fiveBitChunksReversed.last().joinToString("").toInt(2) == 0) {
-    fiveBitChunksReversed.removeAt(fiveBitChunksReversed.lastIndex)
-  }
-
-  val continuationEncoding = fiveBitChunksReversed.map { chunk ->
-    (listOf('1') + chunk.toList()).toCharArray()
-  }.toMutableList()
-
-  continuationEncoding.last()[0] = '0'
-  return continuationEncoding.map { it.joinToString("").toInt(2) + 63 }.map { it.toChar() }.joinToString("")
-}
-
-private fun Int.toBinaryArray(): CharArray {
-  var index = 31
-  val result = CharArray(32)
-  while (index >= 0) {
-    result[31 - index] = if (this and (1 shl index) != 0) '1' else '0'
-    index -= 1
-  }
-  return result
-}
 
 fun getCompletedSegmentsFor(database: Firestore, athleteId: String): List<CompletedSegment> {
   val docRef: DocumentReference = database.collection("athletes").document(athleteId)
